@@ -9,7 +9,7 @@ cmds = [
   "pip install setuptools",
   "pip install torch --index-url https://download.pytorch.org/whl/cpu",
   "pip install --no-build-isolation openai-whisper==20240930",
-  "pip install -r requirements.txt"
+  "pip install -r requirements.txt --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple"
 ]
 
 [start]
