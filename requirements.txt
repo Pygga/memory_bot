@@ -6,7 +6,7 @@ groq==0.13.0
 python-dotenv==1.0.1
 Pillow==12.1.1
 aiofiles==23.2.1
-sentence-transformers==3.0.1
+fastembed
 PyPDF2==3.0.1
 pdf2image==1.17.0
 pytesseract==0.3.13

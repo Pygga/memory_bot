@@ -1,4 +1,4 @@
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 _model = None
 
@@ -6,6 +6,6 @@ _model = None
 def get_embedding(text: str) -> list[float]:
     global _model
     if _model is None:
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-    embedding = _model.encode(text, normalize_embeddings=True)
-    return embedding.tolist()
+        _model = TextEmbedding("BAAI/bge-small-en-v1.5")
+    embeddings = list(_model.embed([text]))
+    return embeddings[0].tolist()
