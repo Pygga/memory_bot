@@ -1,11 +1,13 @@
-import whisper as _whisper
+import os
+from groq import Groq
 
-_model = None
+_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def transcribe_audio(file_path: str) -> str:
-    global _model
-    if _model is None:
-        _model = _whisper.load_model("base")
-    result = _model.transcribe(file_path)
-    return result["text"].strip()
+    with open(file_path, "rb") as f:
+        result = _client.audio.transcriptions.create(
+            file=f,
+            model="whisper-large-v3-turbo",
+        )
+    return result.text.strip()
