@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(venv/bin/pip install:*)",
+      "Bash(/Users/dmitry/Desktop/memory_bot/.env.example:*)"
+    ]
+  }
+}

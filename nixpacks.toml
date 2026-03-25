@@ -1,0 +1,5 @@
+[phases.setup]
+nixPkgs = ["ffmpeg", "poppler_utils", "tesseract", "tesseract-data-rus", "tesseract-data-eng"]
+
+[start]
+cmd = "python main.py"
