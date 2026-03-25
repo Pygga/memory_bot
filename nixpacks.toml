@@ -4,9 +4,8 @@ aptPkgs = ["ffmpeg", "poppler-utils", "tesseract-ocr", "tesseract-ocr-rus", "tes
 [phases.install]
 cmds = [
   "pip install setuptools",
-  "pip install torch --index-url https://download.pytorch.org/whl/cpu",
   "pip install --no-build-isolation openai-whisper==20240930",
-  "pip install -r requirements.txt --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple",
+  "pip install -r requirements.txt",
   "pip cache purge"
 ]
 
