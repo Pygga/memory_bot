@@ -1,6 +1,3 @@
-[variables]
-NIXPACKS_PYTHON_VERSION = "3.12"
-
 [phases.setup]
 aptPkgs = ["ffmpeg", "poppler-utils", "tesseract-ocr", "tesseract-ocr-rus", "tesseract-ocr-eng"]
 
