@@ -4,7 +4,7 @@ aptPkgs = ["ffmpeg", "poppler-utils", "tesseract-ocr", "tesseract-ocr-rus", "tes
 [phases.install]
 cmds = [
   "pip install setuptools",
-  "pip install --no-build-isolation openai-whisper==20240930 -r requirements.txt",
+  "pip install --no-build-isolation -r requirements.txt",
   "pip cache purge"
 ]
 
