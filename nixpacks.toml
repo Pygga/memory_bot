@@ -1,12 +1,6 @@
 [phases.setup]
 aptPkgs = ["ffmpeg", "poppler-utils", "tesseract-ocr", "tesseract-ocr-rus", "tesseract-ocr-eng"]
-
-[phases.install]
-cmds = [
-  "pip install setuptools",
-  "pip install --no-build-isolation -r requirements.txt",
-  "pip cache purge"
-]
+cmds = ["pip install setuptools", "pip config set global.no-build-isolation true"]
 
 [start]
 cmd = "python main.py"
