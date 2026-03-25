@@ -5,7 +5,7 @@ NIXPACKS_PYTHON_VERSION = "3.12"
 nixPkgs = ["ffmpeg", "poppler_utils", "tesseract", "tesseract-data-rus", "tesseract-data-eng"]
 
 [phases.install]
-cmds = ["pip install setuptools", "pip install -r requirements.txt"]
+cmds = ["pip install setuptools", "pip install --no-build-isolation openai-whisper==20240930", "pip install -r requirements.txt"]
 
 [start]
 cmd = "python main.py"
