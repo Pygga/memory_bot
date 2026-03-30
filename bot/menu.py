@@ -71,7 +71,7 @@ def _main_kb(lang: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text=t(lang, "search_title"), callback_data="menu:search")],
         [
             InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin"),
-            InlineKeyboardButton(text=t(lang, "digest_title"), callback_data="menu:digest"),
+            InlineKeyboardButton(text=t(lang, "digest_title"), callback_data="menu:digest:view"),
         ],
         [
             InlineKeyboardButton(text=t(lang, "ai_title"), callback_data="menu:ai"),
@@ -424,6 +424,17 @@ async def handle_checkin_location(message: Message, state: FSMContext):
 
 
 # ── Digest ─────────────────────────────────────────────────────────────────
+
+
+@menu_router.callback_query(F.data == "menu:digest:view")
+async def cb_digest_view(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "digest_get_now"), callback_data="menu:digest:now")],
+        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
+    ])
+    await call.message.edit_text(t(lang, "digest_title"), reply_markup=kb)
+    await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:digest")
