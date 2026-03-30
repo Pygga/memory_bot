@@ -219,6 +219,30 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "month",
     },
 
+    # ── Digest toggle labels ──────────────────────────────────────────────────
+    "digest_enabled": {
+        "ru": "✅ Дайджест включён",
+        "en": "✅ Digest enabled",
+    },
+    "digest_disabled": {
+        "ru": "❌ Дайджест выключен",
+        "en": "❌ Digest disabled",
+    },
+
+    # ── Buttons ───────────────────────────────────────────────────────────────
+    "settings_back": {
+        "ru": "← Настройки",
+        "en": "← Settings",
+    },
+    "time_checkin_btn": {
+        "ru": "Время: {time} (UTC{sign}{offset})",
+        "en": "Time: {time} (UTC{sign}{offset})",
+    },
+    "time_digest_btn": {
+        "ru": "Время: {time} (UTC{sign}{offset})",
+        "en": "Time: {time} (UTC{sign}{offset})",
+    },
+
     # ── Geolocation ───────────────────────────────────────────────────────────
     "location_btn": {
         "ru": "📍 Отправить геолокацию",

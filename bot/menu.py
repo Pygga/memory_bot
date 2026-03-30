@@ -86,10 +86,10 @@ def _checkin_kb(lang: str, enabled: bool, hour: int, minute: int, utc_offset: in
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=toggle, callback_data="menu:checkin:toggle")],
         [InlineKeyboardButton(
-            text=f"Время: {hour:02d}:{minute:02d} (UTC{sign}{utc_offset})",
+            text=t(lang, "time_checkin_btn", time=f"{hour:02d}:{minute:02d}", sign=sign, offset=utc_offset),
             callback_data="menu:checkin:time",
         )],
-        [InlineKeyboardButton(text="← Настройки", callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "settings_back"), callback_data="menu:main")],
     ])
 
 
@@ -100,8 +100,7 @@ FORMAT_NEXT = {"brief": "full", "full": "emotional", "emotional": "brief"}
 
 
 def _digest_enabled_label(lang: str, enabled: bool) -> str:
-    return ("✅ Дайджест включён" if lang == "ru" else "✅ Digest enabled") if enabled else \
-           ("❌ Дайджест выключен" if lang == "ru" else "❌ Digest disabled")
+    return t(lang, "digest_enabled") if enabled else t(lang, "digest_disabled")
 
 
 def _digest_kb(lang: str, enabled: bool, hour: int, utc_offset: int, period: str, fmt: str) -> InlineKeyboardMarkup:
@@ -114,10 +113,10 @@ def _digest_kb(lang: str, enabled: bool, hour: int, utc_offset: int, period: str
             InlineKeyboardButton(text=t(lang, FORMAT_KEYS.get(fmt, "digest_format_full")), callback_data="menu:digest:format"),
         ],
         [InlineKeyboardButton(
-            text=f"Время: {hour:02d}:00 (UTC{sign}{utc_offset})",
+            text=t(lang, "time_digest_btn", time=f"{hour:02d}:00", sign=sign, offset=utc_offset),
             callback_data="menu:digest:time",
         )],
-        [InlineKeyboardButton(text="← Настройки", callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "settings_back"), callback_data="menu:main")],
     ])
 
 
@@ -266,7 +265,7 @@ async def cb_lang(call: CallbackQuery):
     next_lang = "en" if new_lang == "ru" else "ru"
     lang_label = "🌐 RU → EN" if new_lang == "ru" else "🌐 EN → RU"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=t(new_lang, "checkin_title"), callback_data="menu:checkin")],
+        [InlineKeyboardButton(text=t(new_lang, "checkin_title"), callback_data="menu:checkin:settings")],
         [InlineKeyboardButton(text=t(new_lang, "digest_title"), callback_data="menu:digest")],
         [InlineKeyboardButton(text=lang_label, callback_data=f"menu:lang:{next_lang}")],
         [InlineKeyboardButton(text=t(new_lang, "back"), callback_data="menu:main")],
