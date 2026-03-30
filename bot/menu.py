@@ -70,11 +70,11 @@ def _main_kb(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t(lang, "search_title"), callback_data="menu:search")],
         [
-            InlineKeyboardButton(text=t(lang, "ai_title"), callback_data="menu:ai"),
+            InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin"),
             InlineKeyboardButton(text=t(lang, "digest_title"), callback_data="menu:digest"),
         ],
         [
-            InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin"),
+            InlineKeyboardButton(text=t(lang, "ai_title"), callback_data="menu:ai"),
             InlineKeyboardButton(text=t(lang, "settings_title"), callback_data="menu:settings"),
         ],
     ])
