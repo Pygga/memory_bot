@@ -21,7 +21,15 @@ from db.queries import find_similar_entries_not_today, get_or_create_user, save_
 
 IMAGE_MIMETYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
+_INVITE_CODES: set[str] = {
+    c.strip() for c in os.getenv("INVITE_CODE", "").split(",") if c.strip()
+}
+
 router = Router()
+
+
+class InviteState(StatesGroup):
+    waiting = State()
 
 
 class AIChat(StatesGroup):
@@ -45,7 +53,45 @@ async def cmd_start(message: Message, state: FSMContext):
     from db.models import User
     async with async_session() as session:
         existing = await session.get(User, message.from_user.id)
-        is_new = existing is None
+
+    await state.clear()
+
+    if existing:
+        await main_menu_message(message)
+        return
+
+    # New user — check invite code if required
+    if _INVITE_CODES:
+        await state.set_state(InviteState.waiting)
+        name = message.from_user.first_name or ""
+        await message.answer(
+            f"👋 {name}\n\n"
+            "🔐 Бот в закрытом доступе. Введи инвайт-код:\n"
+            "_Bot is invite-only. Enter your invite code:_",
+            parse_mode="Markdown",
+        )
+        return
+
+    async with async_session() as session:
+        await get_or_create_user(
+            session,
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+        )
+    await onboarding_step_1(message, message.from_user.first_name or "")
+
+
+@router.message(InviteState.waiting)
+async def handle_invite_code(message: Message, state: FSMContext):
+    if not message.text:
+        return
+
+    if message.text.strip() not in _INVITE_CODES:
+        await message.answer(t("ru", "invite_wrong"))
+        return
+
+    async with async_session() as session:
         await get_or_create_user(
             session,
             user_id=message.from_user.id,
@@ -53,10 +99,8 @@ async def cmd_start(message: Message, state: FSMContext):
             first_name=message.from_user.first_name,
         )
     await state.clear()
-    if is_new:
-        await onboarding_step_1(message, message.from_user.first_name)
-    else:
-        await main_menu_message(message)
+    from bot.menu import onboarding_step_1
+    await onboarding_step_1(message, message.from_user.first_name or "")
 
 
 @router.message(F.voice)

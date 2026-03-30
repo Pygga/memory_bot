@@ -257,6 +257,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not detect timezone. Enter manually: `{example}`",
     },
 
+    # ── Invite ────────────────────────────────────────────────────────────────
+    "invite_wrong": {
+        "ru": "❌ Неверный код. Попробуй ещё раз.",
+        "en": "❌ Wrong code. Try again.",
+    },
+
     # ── Onboarding ────────────────────────────────────────────────────────────
     "onboard_1": {
         "ru": (
