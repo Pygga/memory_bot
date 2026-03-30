@@ -286,7 +286,7 @@ async def cb_checkin_time(call: CallbackQuery, state: FSMContext):
     await call.answer()
 
 
-@menu_router.message(MenuState.checkin_time)
+@menu_router.message(MenuState.checkin_time, F.text)
 async def handle_checkin_time(message: Message, state: FSMContext):
     try:
         parts = message.text.strip().split()
@@ -413,7 +413,7 @@ async def cb_digest_time(call: CallbackQuery, state: FSMContext):
     await call.answer()
 
 
-@menu_router.message(MenuState.digest_time)
+@menu_router.message(MenuState.digest_time, F.text)
 async def handle_digest_time(message: Message, state: FSMContext):
     try:
         parts = message.text.strip().split()
