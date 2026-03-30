@@ -257,6 +257,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not detect timezone. Enter manually: `{example}`",
     },
 
+    # ── Rate limit ────────────────────────────────────────────────────────────
+    "rate_limit": {
+        "ru": "📝 Ты уже сделал {limit} записей сегодня — это дневной лимит. Возвращайся завтра!",
+        "en": "📝 You've reached the daily limit of {limit} entries. Come back tomorrow!",
+    },
+
     # ── Invite ────────────────────────────────────────────────────────────────
     "invite_wrong": {
         "ru": "❌ Неверный код. Попробуй ещё раз.",

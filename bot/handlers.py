@@ -17,13 +17,14 @@ from ai.vision import describe_image
 from bot.i18n import t
 from db import async_session
 from db.models import EntryType
-from db.queries import find_similar_entries_not_today, get_or_create_user, save_entry, search_entries
+from db.queries import find_similar_entries_not_today, get_or_create_user, get_today_entry_count, save_entry, search_entries
 
 IMAGE_MIMETYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 _INVITE_CODES: set[str] = {
     c.strip() for c in os.getenv("INVITE_CODE", "").split(",") if c.strip()
 }
+_DAILY_LIMIT = int(os.getenv("DAILY_ENTRY_LIMIT", "50"))
 
 router = Router()
 
@@ -45,6 +46,14 @@ async def _get_lang(user_id: int) -> str:
     async with async_session() as session:
         user = await session.get(User, user_id)
         return user.language if user else "ru"
+
+
+async def _is_rate_limited(session, user_id: int, lang: str, message: Message) -> bool:
+    count = await get_today_entry_count(session, user_id)
+    if count >= _DAILY_LIMIT:
+        await message.answer(t(lang, "rate_limit", limit=_DAILY_LIMIT))
+        return True
+    return False
 
 
 @router.message(CommandStart())
@@ -106,6 +115,10 @@ async def handle_invite_code(message: Message, state: FSMContext):
 @router.message(F.voice)
 async def handle_voice(message: Message, bot: Bot):
     lang = await _get_lang(message.from_user.id)
+    async with async_session() as session:
+        await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
+        if await _is_rate_limited(session, message.from_user.id, lang, message):
+            return
     await message.answer(t(lang, "listening"))
 
     voice: Voice = message.voice
@@ -147,6 +160,10 @@ async def handle_voice(message: Message, bot: Bot):
 @router.message(F.photo)
 async def handle_photo(message: Message, bot: Bot):
     lang = await _get_lang(message.from_user.id)
+    async with async_session() as session:
+        await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
+        if await _is_rate_limited(session, message.from_user.id, lang, message):
+            return
     await message.answer(t(lang, "looking_photo"))
 
     photo = message.photo[-1]
@@ -194,6 +211,10 @@ async def handle_document(message: Message, bot: Bot):
         await message.answer(t(lang, "unsupported_file"))
         return
 
+    async with async_session() as session:
+        await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
+        if await _is_rate_limited(session, message.from_user.id, lang, message):
+            return
     await message.answer(t(lang, "reading_file"))
 
     ext = ".pdf" if mime == "application/pdf" else ".jpg"
@@ -301,6 +322,8 @@ async def handle_message(message: Message):
             username=message.from_user.username,
             first_name=message.from_user.first_name,
         )
+        if await _is_rate_limited(session, user_id, lang, message):
+            return
 
         embedding = get_embedding(message.text)
         await save_entry(
