@@ -10,3 +10,4 @@ PyPDF2==3.0.1
 pdf2image==1.17.0
 pytesseract==0.3.13
 APScheduler==3.10.4
+timezonefinder==6.5.2

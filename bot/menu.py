@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -8,7 +9,9 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     Message,
+    ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
 
@@ -23,6 +26,25 @@ from db.queries import (
 
 logger = logging.getLogger(__name__)
 menu_router = Router()
+
+
+def _location_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📍 Отправить геолокацию", request_location=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
+def _utc_offset_from_location(lat: float, lng: float) -> int | None:
+    from timezonefinder import TimezoneFinder
+    from zoneinfo import ZoneInfo
+    tf = TimezoneFinder()
+    tz_str = tf.timezone_at(lat=lat, lng=lng)
+    if not tz_str:
+        return None
+    now = datetime.now(ZoneInfo(tz_str))
+    return int(now.utcoffset().total_seconds() / 3600)
 
 
 class MenuState(StatesGroup):
@@ -255,7 +277,12 @@ async def cb_checkin_toggle(call: CallbackQuery):
 @menu_router.callback_query(F.data == "menu:checkin:time")
 async def cb_checkin_time(call: CallbackQuery, state: FSMContext):
     await state.set_state(MenuState.checkin_time)
-    await call.message.answer("Введи время чекина:\n`21:00 +3`", parse_mode="Markdown")
+    await call.message.answer(
+        "Отправь геолокацию — определю часовой пояс автоматически.\n"
+        "Или введи вручную: `21:00 +3`",
+        parse_mode="Markdown",
+        reply_markup=_location_kb(),
+    )
     await call.answer()
 
 
@@ -278,6 +305,36 @@ async def handle_checkin_time(message: Message, state: FSMContext):
         await update_checkin_settings(session, message.from_user.id, hour=hour, minute=minute, utc_offset=utc_offset)
 
     await state.clear()
+    await message.answer(
+        "🌙 Вечерний чекин:",
+        reply_markup=_checkin_kb(enabled, hour, minute, utc_offset),
+    )
+
+
+@menu_router.message(MenuState.checkin_time, F.location)
+async def handle_checkin_location(message: Message, state: FSMContext):
+    utc_offset = _utc_offset_from_location(message.location.latitude, message.location.longitude)
+    if utc_offset is None:
+        await message.answer(
+            "Не удалось определить часовой пояс. Введи вручную: `21:00 +3`",
+            parse_mode="Markdown",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        return
+
+    async with async_session() as session:
+        user = await get_or_create_user(
+            session, message.from_user.id, message.from_user.username, message.from_user.first_name
+        )
+        enabled, hour, minute = user.checkin_enabled, user.checkin_hour, user.checkin_minute
+        await update_checkin_settings(session, message.from_user.id, utc_offset=utc_offset)
+
+    await state.clear()
+    sign = "+" if utc_offset >= 0 else ""
+    await message.answer(
+        f"Часовой пояс определён: UTC{sign}{utc_offset}",
+        reply_markup=ReplyKeyboardRemove(),
+    )
     await message.answer("🌙 Вечерний чекин:", reply_markup=_checkin_kb(enabled, hour, minute, utc_offset))
 
 
@@ -347,7 +404,12 @@ async def cb_digest_format(call: CallbackQuery):
 @menu_router.callback_query(F.data == "menu:digest:time")
 async def cb_digest_time(call: CallbackQuery, state: FSMContext):
     await state.set_state(MenuState.digest_time)
-    await call.message.answer("Введи время дайджеста:\n`20:00 +3`", parse_mode="Markdown")
+    await call.message.answer(
+        "Отправь геолокацию — определю часовой пояс автоматически.\n"
+        "Или введи вручную: `20:00 +3`",
+        parse_mode="Markdown",
+        reply_markup=_location_kb(),
+    )
     await call.answer()
 
 
@@ -370,6 +432,37 @@ async def handle_digest_time(message: Message, state: FSMContext):
         await update_digest_settings(session, message.from_user.id, hour=hour, utc_offset=utc_offset)
 
     await state.clear()
+    await message.answer(
+        "📋 Дайджест:",
+        reply_markup=_digest_kb(enabled, hour, utc_offset, period, fmt),
+    )
+
+
+@menu_router.message(MenuState.digest_time, F.location)
+async def handle_digest_location(message: Message, state: FSMContext):
+    utc_offset = _utc_offset_from_location(message.location.latitude, message.location.longitude)
+    if utc_offset is None:
+        await message.answer(
+            "Не удалось определить часовой пояс. Введи вручную: `20:00 +3`",
+            parse_mode="Markdown",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        return
+
+    async with async_session() as session:
+        user = await get_or_create_user(
+            session, message.from_user.id, message.from_user.username, message.from_user.first_name
+        )
+        enabled, period, fmt = user.digest_enabled, user.digest_period, user.digest_format
+        hour = user.digest_hour
+        await update_digest_settings(session, message.from_user.id, utc_offset=utc_offset)
+
+    await state.clear()
+    sign = "+" if utc_offset >= 0 else ""
+    await message.answer(
+        f"Часовой пояс определён: UTC{sign}{utc_offset}",
+        reply_markup=ReplyKeyboardRemove(),
+    )
     await message.answer("📋 Дайджест:", reply_markup=_digest_kb(enabled, hour, utc_offset, period, fmt))
 
 
