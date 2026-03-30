@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 from groq import Groq, APIError, APITimeoutError
 
@@ -9,11 +10,33 @@ from db.models import Entry
 
 _client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+_FORMAT_RULES = """
+Форматируй ответ для Telegram HTML:
+• Используй <b>текст</b> для заголовков и ключевых слов
+• Используй • для списков (просто символ, без тегов)
+• Используй <i>текст</i> для дат и второстепенных деталей
+• Не используй markdown (**text**, ##, ---), только HTML-теги выше
+• Не используй <ul>, <li>, <br> и другие HTML-теги кроме <b> и <i>
+"""
+
+
+def _md_to_html(text: str) -> str:
+    """Конвертирует остатки markdown в HTML на случай если модель не послушалась"""
+    # **bold** или __bold__
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"__(.+?)__", r"<b>\1</b>", text)
+    # *italic* или _italic_
+    text = re.sub(r"\*(.+?)\*", r"<i>\1</i>", text)
+    text = re.sub(r"_(.+?)_", r"<i>\1</i>", text)
+    # ### Header → <b>Header</b>
+    text = re.sub(r"#{1,3}\s+(.+)", r"<b>\1</b>", text)
+    # - item → • item
+    text = re.sub(r"^[-*]\s+", "• ", text, flags=re.MULTILINE)
+    return text
+
 
 def answer_from_diary(question: str, entries: list[Entry], history: list[dict] | None = None) -> str:
-    """Ответить на вопрос на основе записей дневника.
-    history — предыдущие сообщения диалога [{"role": ..., "content": ...}]
-    """
+    """Ответить на вопрос на основе записей дневника."""
     if not entries:
         current_message = f"Вопрос: {question}"
     else:
@@ -30,7 +53,8 @@ def answer_from_diary(question: str, entries: list[Entry], history: list[dict] |
             "content": (
                 "Ты — ассистент, который анализирует записи личного дневника пользователя.\n"
                 "Говори про пользователя: 'ты писал', 'тебя беспокоило', 'ты упоминал'.\n"
-                "Опирайся только на записи — не придумывай. Отвечай кратко и по делу."
+                "Опирайся только на записи — не придумывай. Отвечай кратко и по делу.\n\n"
+                + _FORMAT_RULES
             ),
         }
     ]
@@ -45,7 +69,7 @@ def answer_from_diary(question: str, entries: list[Entry], history: list[dict] |
             model="llama-3.3-70b-versatile",
             messages=messages,
         )
-        return response.choices[0].message.content
+        return _md_to_html(response.choices[0].message.content)
     except (APIError, APITimeoutError) as e:
         logger.error("Groq API error in answer_from_diary: %s", e)
         return "Сервис временно недоступен, попробуй чуть позже."
@@ -54,17 +78,25 @@ def answer_from_diary(question: str, entries: list[Entry], history: list[dict] |
 DIGEST_PROMPTS = {
     "brief": (
         "Составь краткий дайджест за {period}. "
-        "3-4 пункта, только самое важное. Без воды.\n\nЗаписи:\n{diary_text}"
+        "3-4 пункта, только самое важное. Без воды.\n\n"
+        "Записи:\n{diary_text}"
     ),
     "full": (
         "Составь развёрнутый дайджест за {period}. "
-        "Структура: главные темы, общее настроение, важные события, один вывод.\n\nЗаписи:\n{diary_text}"
+        "Разделы: <b>Главные темы</b>, <b>Настроение</b>, <b>События</b>, <b>Вывод</b>.\n\n"
+        "Записи:\n{diary_text}"
     ),
     "emotional": (
         "Проанализируй эмоциональное состояние за {period}. "
-        "Как менялось настроение? Что беспокоило? Что радовало? Были ли переломные моменты?\n\nЗаписи:\n{diary_text}"
+        "Разделы: <b>Общий фон</b>, <b>Что беспокоило</b>, <b>Что радовало</b>, <b>Переломные моменты</b>.\n\n"
+        "Записи:\n{diary_text}"
     ),
 }
+
+_DIGEST_SYSTEM = (
+    "Ты анализируешь записи личного дневника и составляешь структурированный дайджест.\n"
+    + _FORMAT_RULES
+)
 
 
 def generate_digest(entries: list[Entry], fmt: str = "full", period: str = "неделю") -> str:
@@ -85,27 +117,33 @@ def generate_digest(entries: list[Entry], fmt: str = "full", period: str = "не
     try:
         response = _client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": _DIGEST_SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
         )
-        return response.choices[0].message.content
+        return _md_to_html(response.choices[0].message.content)
     except (APIError, APITimeoutError) as e:
         logger.error("Groq API error in generate_digest: %s", e)
         return "Не удалось сгенерировать дайджест. Попробуй позже."
 
 
 def answer_ai(history: list[dict]) -> str:
-    """Ответить как чистый AI-ассистент без контекста дневника.
-    history — список {"role": "user"/"assistant", "content": "..."}
-    """
-    messages = [{"role": "system", "content": "Ты умный помощник. Отвечай кратко и по делу."}]
-    messages.extend(history[-20:])  # не больше 20 последних сообщений
+    """Ответить как чистый AI-ассистент без контекста дневника."""
+    messages = [
+        {
+            "role": "system",
+            "content": "Ты умный помощник. Отвечай кратко и по делу.\n\n" + _FORMAT_RULES,
+        }
+    ]
+    messages.extend(history[-20:])
 
     try:
         response = _client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
         )
-        return response.choices[0].message.content
+        return _md_to_html(response.choices[0].message.content)
     except (APIError, APITimeoutError) as e:
         logger.error("Groq API error in answer_ai: %s", e)
         return "Сервис временно недоступен, попробуй чуть позже."
