@@ -2,7 +2,7 @@ import os
 import tempfile
 
 from aiogram import Bot, F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, Voice
@@ -287,6 +287,40 @@ async def ai_chat(message: Message, state: FSMContext):
     history.append({"role": "assistant", "content": answer})
     await state.update_data(history=history)
     await sent.edit_text(answer)
+
+
+@router.message(StateFilter("*"), F.text.in_({
+    "🔍 Поиск по дневнику", "🤖 Ассистент", "📋 Дайджест", "🌙 Чекин", "⚙️ Настройки"
+}))
+async def handle_menu_buttons(message: Message, state: FSMContext):
+    from bot.menu import _checkin_kb, _digest_kb, _reply_kb
+    await state.clear()
+    text = message.text
+
+    if text == "🔍 Поиск по дневнику":
+        await state.set_state(DiaryChat.active)
+        await state.update_data(history=[])
+        await message.answer("🔍 Поиск по дневнику включён. Задавай вопросы — отвечу на основе записей.\nВыход — нажми любую другую кнопку меню.")
+
+    elif text == "🤖 Ассистент":
+        await state.set_state(AIChat.active)
+        await state.update_data(history=[])
+        await message.answer("🤖 Ассистент включён. Пиши — отвечу.\nВыход — нажми любую другую кнопку меню.")
+
+    elif text == "🌙 Чекин":
+        async with async_session() as session:
+            user = await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
+            kb = _checkin_kb(user.checkin_enabled, user.checkin_hour, user.checkin_minute, user.checkin_utc_offset)
+        await message.answer("🌙 Вечерний чекин:", reply_markup=kb)
+
+    elif text == "📋 Дайджест":
+        async with async_session() as session:
+            user = await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
+            kb = _digest_kb(user.digest_enabled, user.digest_hour, user.digest_utc_offset, user.digest_period, user.digest_format)
+        await message.answer("📋 Дайджест:", reply_markup=kb)
+
+    elif text == "⚙️ Настройки":
+        await message.answer("Меню открыто 👇", reply_markup=_reply_kb())
 
 
 @router.message()
