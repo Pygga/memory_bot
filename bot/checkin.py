@@ -42,12 +42,13 @@ async def handle_checkin_response(message: Message, state: FSMContext):
     text = f"[Чекин] {message.text}"
     embedding = get_embedding(text)
     async with async_session() as session:
-        await get_or_create_user(
+        user = await get_or_create_user(
             session,
             user_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
         )
+        lang = user.language or "ru"
         await save_entry(
             session,
             user_id=message.from_user.id,
@@ -57,10 +58,6 @@ async def handle_checkin_response(message: Message, state: FSMContext):
         )
 
     await state.clear()
-    from db.models import User
-    async with async_session() as session:
-        u = await session.get(User, message.from_user.id)
-        lang = u.language if u else "ru"
     await message.answer(t(lang, "checkin_saved"))
 
 

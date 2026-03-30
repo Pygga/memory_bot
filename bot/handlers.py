@@ -2,7 +2,7 @@ import os
 import tempfile
 
 from aiogram import Bot, F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, Voice
@@ -242,7 +242,7 @@ async def ai_chat(message: Message, state: FSMContext):
     await sent.edit_text(answer)
 
 
-@router.message()
+@router.message(StateFilter(None))
 async def handle_message(message: Message):
     if not message.text:
         return
