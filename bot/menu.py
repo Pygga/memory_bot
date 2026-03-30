@@ -1,17 +1,27 @@
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     Message,
+    ReplyKeyboardMarkup,
 )
 
+# Тексты кнопок reply-клавиатуры
+BTN_SEARCH = "🔍 Поиск по дневнику"
+BTN_AI = "🤖 Ассистент"
+BTN_DIGEST = "📋 Дайджест"
+BTN_CHECKIN = "🌙 Чекин"
+BTN_SETTINGS = "⚙️ Настройки"
+
 from ai.claude import generate_digest
+from bot.handlers import AIChat, DiaryChat
 from db import async_session
 from db.queries import (
     get_entries_for_period,
@@ -32,13 +42,16 @@ class MenuState(StatesGroup):
 # ── Keyboards ──────────────────────────────────────────────────────────────
 
 
-def _main_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🌙 Чекин", callback_data="menu:checkin"),
-            InlineKeyboardButton(text="📋 Дайджест", callback_data="menu:digest"),
+def _reply_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=BTN_SEARCH)],
+            [KeyboardButton(text=BTN_AI), KeyboardButton(text=BTN_DIGEST)],
+            [KeyboardButton(text=BTN_CHECKIN), KeyboardButton(text=BTN_SETTINGS)],
         ],
-    ])
+        resize_keyboard=True,
+        is_persistent=True,
+    )
 
 
 def _checkin_kb(enabled: bool, hour: int, minute: int, utc_offset: int) -> InlineKeyboardMarkup:
@@ -82,13 +95,13 @@ def _digest_kb(enabled: bool, hour: int, utc_offset: int, period: str, fmt: str)
 @menu_router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Главное меню:", reply_markup=_main_kb())
+    await message.answer("Меню открыто 👇", reply_markup=_reply_kb())
 
 
 @menu_router.callback_query(F.data == "menu:main")
 async def cb_main(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.message.edit_text("Главное меню:", reply_markup=_main_kb())
+    await call.message.edit_text("Меню открыто 👇", reply_markup=_reply_kb())
     await call.answer()
 
 
@@ -262,3 +275,51 @@ async def cb_digest_now(call: CallbackQuery):
     sent = await call.message.answer("Генерирую дайджест...")
     text = generate_digest(entries, fmt=fmt, period=period_label)
     await sent.edit_text(f"📋 Дайджест за {period_label}:\n\n{text}")
+
+
+# ── Reply keyboard button handlers ─────────────────────────────────────────
+
+
+@menu_router.message(StateFilter("*"), F.text == BTN_SEARCH)
+async def btn_search(message: Message, state: FSMContext):
+    await state.set_state(DiaryChat.active)
+    await state.update_data(history=[])
+    await message.answer("🔍 Поиск по дневнику включён. Задавай вопросы, отвечу на основе записей.\nВыход — нажми любую другую кнопку меню.")
+
+
+@menu_router.message(StateFilter("*"), F.text == BTN_AI)
+async def btn_ai(message: Message, state: FSMContext):
+    await state.set_state(AIChat.active)
+    await state.update_data(history=[])
+    await message.answer("🤖 Ассистент включён. Пиши — отвечу.\nВыход — нажми любую другую кнопку меню.")
+
+
+@menu_router.message(StateFilter("*"), F.text == BTN_CHECKIN)
+async def btn_checkin(message: Message, state: FSMContext):
+    await state.clear()
+    async with async_session() as session:
+        user = await get_or_create_user(
+            session, message.from_user.id, message.from_user.username, message.from_user.first_name
+        )
+        kb = _checkin_kb(user.checkin_enabled, user.checkin_hour, user.checkin_minute, user.checkin_utc_offset)
+    await message.answer("🌙 Вечерний чекин:", reply_markup=kb)
+
+
+@menu_router.message(StateFilter("*"), F.text == BTN_DIGEST)
+async def btn_digest(message: Message, state: FSMContext):
+    await state.clear()
+    async with async_session() as session:
+        user = await get_or_create_user(
+            session, message.from_user.id, message.from_user.username, message.from_user.first_name
+        )
+        kb = _digest_kb(
+            user.digest_enabled, user.digest_hour, user.digest_utc_offset,
+            user.digest_period, user.digest_format,
+        )
+    await message.answer("📋 Дайджест:", reply_markup=kb)
+
+
+@menu_router.message(StateFilter("*"), F.text == BTN_SETTINGS)
+async def btn_settings(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Меню открыто 👇", reply_markup=_reply_kb())
