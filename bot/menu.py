@@ -86,10 +86,10 @@ def _checkin_kb(lang: str, enabled: bool, hour: int, minute: int, utc_offset: in
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=toggle, callback_data="menu:checkin:toggle")],
         [InlineKeyboardButton(
-            text=f"🕐 {hour:02d}:{minute:02d} (UTC{sign}{utc_offset})",
+            text=f"Время: {hour:02d}:{minute:02d} (UTC{sign}{utc_offset})",
             callback_data="menu:checkin:time",
         )],
-        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:settings")],
+        [InlineKeyboardButton(text="← Настройки", callback_data="menu:main")],
     ])
 
 
@@ -99,19 +99,25 @@ FORMAT_KEYS = {"brief": "digest_format_brief", "full": "digest_format_full", "em
 FORMAT_NEXT = {"brief": "full", "full": "emotional", "emotional": "brief"}
 
 
+def _digest_enabled_label(lang: str, enabled: bool) -> str:
+    return ("✅ Дайджест включён" if lang == "ru" else "✅ Digest enabled") if enabled else \
+           ("❌ Дайджест выключен" if lang == "ru" else "❌ Digest disabled")
+
+
 def _digest_kb(lang: str, enabled: bool, hour: int, utc_offset: int, period: str, fmt: str) -> InlineKeyboardMarkup:
-    toggle = t(lang, "checkin_enabled") if enabled else t(lang, "checkin_disabled")
     sign = "+" if utc_offset >= 0 else ""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=toggle, callback_data="menu:digest:toggle")],
+        [InlineKeyboardButton(text=_digest_enabled_label(lang, enabled), callback_data="menu:digest:toggle")],
         [InlineKeyboardButton(text=t(lang, "digest_get_now"), callback_data="menu:digest:now")],
-        [InlineKeyboardButton(text=t(lang, PERIOD_KEYS.get(period, "digest_period_week")), callback_data="menu:digest:period")],
-        [InlineKeyboardButton(text=t(lang, FORMAT_KEYS.get(fmt, "digest_format_full")), callback_data="menu:digest:format")],
+        [
+            InlineKeyboardButton(text=t(lang, PERIOD_KEYS.get(period, "digest_period_week")), callback_data="menu:digest:period"),
+            InlineKeyboardButton(text=t(lang, FORMAT_KEYS.get(fmt, "digest_format_full")), callback_data="menu:digest:format"),
+        ],
         [InlineKeyboardButton(
-            text=f"🕐 {hour:02d}:00 (UTC{sign}{utc_offset})",
+            text=f"Время: {hour:02d}:00 (UTC{sign}{utc_offset})",
             callback_data="menu:digest:time",
         )],
-        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
+        [InlineKeyboardButton(text="← Настройки", callback_data="menu:main")],
     ])
 
 

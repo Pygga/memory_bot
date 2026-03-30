@@ -105,16 +105,16 @@ STRINGS: dict[str, dict[str, str]] = {
 
     # ── Checkin ───────────────────────────────────────────────────────────────
     "checkin_menu": {
-        "ru": "🌙 Вечерний чекин:",
-        "en": "🌙 Evening check-in:",
+        "ru": "⚙️ Настройки / 🌙 Чекин",
+        "en": "⚙️ Settings / 🌙 Check-in",
     },
     "checkin_enabled": {
-        "ru": "✅ Включён",
-        "en": "✅ Enabled",
+        "ru": "✅ Чекин включён",
+        "en": "✅ Check-in enabled",
     },
     "checkin_disabled": {
-        "ru": "❌ Выключен",
-        "en": "❌ Disabled",
+        "ru": "❌ Чекин выключен",
+        "en": "❌ Check-in disabled",
     },
     "checkin_toggled_on": {
         "ru": "Включён ✅",
@@ -163,32 +163,32 @@ STRINGS: dict[str, dict[str, str]] = {
 
     # ── Digest ────────────────────────────────────────────────────────────────
     "digest_menu": {
-        "ru": "📋 Дайджест:",
-        "en": "📋 Digest:",
+        "ru": "⚙️ Настройки / 📋 Дайджест",
+        "en": "⚙️ Settings / 📋 Digest",
     },
     "digest_get_now": {
         "ru": "📨 Получить сейчас",
         "en": "📨 Get now",
     },
     "digest_period_week": {
-        "ru": "📅 Раз в неделю",
-        "en": "📅 Weekly",
+        "ru": "Период: неделя",
+        "en": "Period: weekly",
     },
     "digest_period_month": {
-        "ru": "📅 Раз в месяц",
-        "en": "📅 Monthly",
+        "ru": "Период: месяц",
+        "en": "Period: monthly",
     },
     "digest_format_brief": {
-        "ru": "📝 Краткий",
-        "en": "📝 Brief",
+        "ru": "Формат: краткий",
+        "en": "Format: brief",
     },
     "digest_format_full": {
-        "ru": "📄 Полный",
-        "en": "📄 Full",
+        "ru": "Формат: полный",
+        "en": "Format: full",
     },
     "digest_format_emotional": {
-        "ru": "💬 Эмоции",
-        "en": "💬 Emotional",
+        "ru": "Формат: эмоции",
+        "en": "Format: emotional",
     },
     "digest_time_prompt": {
         "ru": "Отправь геолокацию — определю часовой пояс автоматически.\nИли введи вручную: `20:00 +3`",
