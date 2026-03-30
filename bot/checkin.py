@@ -233,7 +233,7 @@ async def _check_and_send_digests(bot) -> None:
             if not entries:
                 continue
             text = generate_digest(entries, fmt=user.digest_format, period=period_label)
-            await bot.send_message(user.id, f"📋 Дайджест за {period_label}:\n\n{text}", parse_mode="HTML")
+            await bot.send_message(user.id, f"📋 Дайджест за {period_label}:\n\n{text}")
         except Exception as e:
             logger.warning("Digest failed for user %s: %s", user.id, e)
 

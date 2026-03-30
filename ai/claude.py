@@ -11,26 +11,23 @@ from db.models import Entry
 _client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 _FORMAT_RULES = """
-Форматируй ответ для Telegram HTML:
-• Используй <b>текст</b> для заголовков и ключевых слов
-• Используй • для списков (просто символ, без тегов)
-• Используй <i>текст</i> для дат и второстепенных деталей
-• Не используй markdown (**text**, ##, ---), только HTML-теги выше
-• Не используй <ul>, <li>, <br> и другие HTML-теги кроме <b> и <i>
+Пиши plain text — без markdown и HTML-тегов.
+Для списков используй • (символ пули).
+Не используй **жирный**, _курсив_, ### заголовки и любые теги.
 """
 
 
-def _md_to_html(text: str) -> str:
-    """Конвертирует остатки markdown в HTML на случай если модель не послушалась"""
-    # **bold** или __bold__
-    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    text = re.sub(r"__(.+?)__", r"<b>\1</b>", text)
-    # *italic* или _italic_
-    text = re.sub(r"\*(.+?)\*", r"<i>\1</i>", text)
-    text = re.sub(r"_(.+?)_", r"<i>\1</i>", text)
-    # ### Header → <b>Header</b>
-    text = re.sub(r"#{1,3}\s+(.+)", r"<b>\1</b>", text)
-    # - item → • item
+def _strip_formatting(text: str) -> str:
+    """Убирает markdown-разметку, оставляет чистый текст с • для списков"""
+    # **bold** и __bold__ → просто текст
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    # *italic* и _italic_ → просто текст
+    text = re.sub(r"\*(.+?)\*", r"\1", text)
+    text = re.sub(r"_(.+?)_", r"\1", text)
+    # ### Header → текст без #
+    text = re.sub(r"#{1,3}\s+(.+)", r"\1", text)
+    # - item и * item → • item
     text = re.sub(r"^[-*]\s+", "• ", text, flags=re.MULTILINE)
     return text
 
@@ -69,7 +66,7 @@ def answer_from_diary(question: str, entries: list[Entry], history: list[dict] |
             model="llama-3.3-70b-versatile",
             messages=messages,
         )
-        return _md_to_html(response.choices[0].message.content)
+        return _strip_formatting(response.choices[0].message.content)
     except (APIError, APITimeoutError) as e:
         logger.error("Groq API error in answer_from_diary: %s", e)
         return "Сервис временно недоступен, попробуй чуть позже."
@@ -83,12 +80,12 @@ DIGEST_PROMPTS = {
     ),
     "full": (
         "Составь развёрнутый дайджест за {period}. "
-        "Разделы: <b>Главные темы</b>, <b>Настроение</b>, <b>События</b>, <b>Вывод</b>.\n\n"
+        "Разделы: Главные темы, Настроение, События, Вывод.\n\n"
         "Записи:\n{diary_text}"
     ),
     "emotional": (
         "Проанализируй эмоциональное состояние за {period}. "
-        "Разделы: <b>Общий фон</b>, <b>Что беспокоило</b>, <b>Что радовало</b>, <b>Переломные моменты</b>.\n\n"
+        "Разделы: Общий фон, Что беспокоило, Что радовало, Переломные моменты.\n\n"
         "Записи:\n{diary_text}"
     ),
 }
@@ -122,7 +119,7 @@ def generate_digest(entries: list[Entry], fmt: str = "full", period: str = "не
                 {"role": "user", "content": prompt},
             ],
         )
-        return _md_to_html(response.choices[0].message.content)
+        return _strip_formatting(response.choices[0].message.content)
     except (APIError, APITimeoutError) as e:
         logger.error("Groq API error in generate_digest: %s", e)
         return "Не удалось сгенерировать дайджест. Попробуй позже."
@@ -143,7 +140,7 @@ def answer_ai(history: list[dict]) -> str:
             model="llama-3.3-70b-versatile",
             messages=messages,
         )
-        return _md_to_html(response.choices[0].message.content)
+        return _strip_formatting(response.choices[0].message.content)
     except (APIError, APITimeoutError) as e:
         logger.error("Groq API error in answer_ai: %s", e)
         return "Сервис временно недоступен, попробуй чуть позже."

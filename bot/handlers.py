@@ -287,7 +287,7 @@ async def diary_chat(message: Message, state: FSMContext):
     history.append({"role": "user", "content": message.text})
     history.append({"role": "assistant", "content": answer})
     await state.update_data(history=history)
-    await sent.edit_text(answer, parse_mode="HTML")
+    await sent.edit_text(answer)
 
 
 @router.message(AIChat.active)
@@ -304,7 +304,7 @@ async def ai_chat(message: Message, state: FSMContext):
     answer = answer_ai(history)
     history.append({"role": "assistant", "content": answer})
     await state.update_data(history=history)
-    await sent.edit_text(answer, parse_mode="HTML")
+    await sent.edit_text(answer)
 
 
 @router.message(StateFilter(None))

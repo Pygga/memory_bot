@@ -578,4 +578,4 @@ async def cb_digest_now(call: CallbackQuery):
 
     sent = await call.message.answer(t(lang, "digest_generating"))
     text = generate_digest(entries, fmt=fmt, period=period_label)
-    await sent.edit_text(t(lang, "digest_result", period=period_label, text=text), parse_mode="HTML")
+    await sent.edit_text(t(lang, "digest_result", period=period_label, text=text))
