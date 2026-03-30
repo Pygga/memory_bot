@@ -180,6 +180,17 @@ async def update_language(session: AsyncSession, user_id: int, language: str) ->
     await session.commit()
 
 
+async def get_all_entries(session: AsyncSession, user_id: int) -> list[Entry]:
+    """Все записи пользователя по дате"""
+    result = await session.execute(
+        select(Entry)
+        .where(Entry.user_id == user_id)
+        .where(Entry.text.isnot(None))
+        .order_by(Entry.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def get_today_entry_count(session: AsyncSession, user_id: int) -> int:
     """Количество записей пользователя за сегодня (UTC)"""
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)

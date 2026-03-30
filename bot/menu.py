@@ -19,6 +19,7 @@ from ai.claude import generate_digest
 from bot.i18n import t
 from db import async_session
 from db.queries import (
+    get_all_entries,
     get_entries_for_period,
     get_or_create_user,
     get_recent_checkins,
@@ -250,11 +251,43 @@ async def cb_settings(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin:settings")],
         [InlineKeyboardButton(text=t(lang, "digest_title"), callback_data="menu:digest")],
+        [InlineKeyboardButton(text=t(lang, "export_btn"), callback_data="menu:export")],
         [InlineKeyboardButton(text=lang_label, callback_data=f"menu:lang:{next_lang}")],
         [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
     ])
     await call.message.edit_text(t(lang, "settings_menu"), reply_markup=kb)
     await call.answer()
+
+
+@menu_router.callback_query(F.data == "menu:export")
+async def cb_export(call: CallbackQuery):
+    import os
+    from bot.export import generate_diary_pdf
+    from aiogram.types import BufferedInputFile
+
+    lang = await _get_lang(call.from_user.id)
+    await call.answer(t(lang, "export_generating"))
+
+    async with async_session() as session:
+        user = await get_or_create_user(
+            session, call.from_user.id, call.from_user.username, call.from_user.first_name
+        )
+        entries = await get_all_entries(session, call.from_user.id)
+
+    if not entries:
+        await call.message.answer(t(lang, "export_empty"))
+        return
+
+    sent = await call.message.answer(t(lang, "export_generating"))
+    pdf_path = generate_diary_pdf(entries, owner_name=user.first_name or "", lang=lang)
+    try:
+        with open(pdf_path, "rb") as f:
+            await call.message.answer_document(
+                BufferedInputFile(f.read(), filename=t(lang, "export_filename"))
+            )
+        await sent.delete()
+    finally:
+        os.unlink(pdf_path)
 
 
 @menu_router.callback_query(F.data.startswith("menu:lang:"))

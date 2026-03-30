@@ -257,6 +257,24 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not detect timezone. Enter manually: `{example}`",
     },
 
+    # ── Export ────────────────────────────────────────────────────────────────
+    "export_btn": {
+        "ru": "📤 Экспорт в PDF",
+        "en": "📤 Export to PDF",
+    },
+    "export_generating": {
+        "ru": "Генерирую PDF...",
+        "en": "Generating PDF...",
+    },
+    "export_empty": {
+        "ru": "Записей пока нет — нечего экспортировать.",
+        "en": "No entries yet — nothing to export.",
+    },
+    "export_filename": {
+        "ru": "дневник.pdf",
+        "en": "diary.pdf",
+    },
+
     # ── Rate limit ────────────────────────────────────────────────────────────
     "rate_limit": {
         "ru": "📝 Ты уже сделал {limit} записей сегодня — это дневной лимит. Возвращайся завтра!",
