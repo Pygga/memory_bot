@@ -8,17 +8,8 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    KeyboardButton,
     Message,
-    ReplyKeyboardMarkup,
 )
-
-# Тексты кнопок reply-клавиатуры
-BTN_SEARCH = "🔍 Поиск по дневнику"
-BTN_AI = "🤖 Ассистент"
-BTN_DIGEST = "📋 Дайджест"
-BTN_CHECKIN = "🌙 Чекин"
-BTN_SETTINGS = "⚙️ Настройки"
 
 from ai.claude import generate_digest
 from db import async_session
@@ -41,16 +32,18 @@ class MenuState(StatesGroup):
 # ── Keyboards ──────────────────────────────────────────────────────────────
 
 
-def _reply_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=BTN_SEARCH)],
-            [KeyboardButton(text=BTN_AI), KeyboardButton(text=BTN_DIGEST)],
-            [KeyboardButton(text=BTN_CHECKIN), KeyboardButton(text=BTN_SETTINGS)],
+def _main_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔍 Поиск по дневнику", callback_data="menu:search")],
+        [
+            InlineKeyboardButton(text="🤖 Ассистент", callback_data="menu:ai"),
+            InlineKeyboardButton(text="📋 Дайджест", callback_data="menu:digest"),
         ],
-        resize_keyboard=True,
-        is_persistent=True,
-    )
+        [
+            InlineKeyboardButton(text="🌙 Чекин", callback_data="menu:checkin"),
+            InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings"),
+        ],
+    ])
 
 
 def _checkin_kb(enabled: bool, hour: int, minute: int, utc_offset: int) -> InlineKeyboardMarkup:
@@ -94,13 +87,47 @@ def _digest_kb(enabled: bool, hour: int, utc_offset: int, period: str, fmt: str)
 @menu_router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Меню открыто 👇", reply_markup=_reply_kb())
+    await message.answer("Главное меню:", reply_markup=_main_kb())
 
 
 @menu_router.callback_query(F.data == "menu:main")
 async def cb_main(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.message.edit_text("Меню открыто 👇", reply_markup=_reply_kb())
+    await call.message.edit_text("Главное меню:", reply_markup=_main_kb())
+    await call.answer()
+
+
+@menu_router.callback_query(F.data == "menu:search")
+async def cb_search(call: CallbackQuery, state: FSMContext):
+    from bot.handlers import DiaryChat
+    await state.set_state(DiaryChat.active)
+    await state.update_data(history=[])
+    await call.message.edit_text(
+        "🔍 Поиск по дневнику включён.\nЗадавай вопросы — отвечу на основе записей.\n\n"
+        "Для выхода напиши /menu",
+    )
+    await call.answer()
+
+
+@menu_router.callback_query(F.data == "menu:ai")
+async def cb_ai(call: CallbackQuery, state: FSMContext):
+    from bot.handlers import AIChat
+    await state.set_state(AIChat.active)
+    await state.update_data(history=[])
+    await call.message.edit_text(
+        "🤖 Ассистент включён. Пиши — отвечу.\n\nДля выхода напиши /menu",
+    )
+    await call.answer()
+
+
+@menu_router.callback_query(F.data == "menu:settings")
+async def cb_settings(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🌙 Чекин", callback_data="menu:checkin")],
+        [InlineKeyboardButton(text="📋 Дайджест", callback_data="menu:digest")],
+        [InlineKeyboardButton(text="← Назад", callback_data="menu:main")],
+    ])
+    await call.message.edit_text("⚙️ Настройки:", reply_markup=kb)
     await call.answer()
 
 
