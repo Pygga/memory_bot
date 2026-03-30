@@ -32,20 +32,23 @@ class DiaryChat(StatesGroup):
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
+    from bot.menu import onboarding_step_1, main_menu_message
+    from db.models import User
     async with async_session() as session:
+        existing = await session.get(User, message.from_user.id)
+        is_new = existing is None
         await get_or_create_user(
             session,
             user_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
         )
-    await message.answer(
-        f"Привет, {message.from_user.first_name}!\n\n"
-        "Я твой личный дневник. Просто напиши что-нибудь или отправь голосовое — я сохраню.\n\n"
-        "Чтобы спросить о прошлом, начни сообщение с '?'\n"
-        "Например: '? что я делал на прошлой неделе'"
-    )
+    await state.clear()
+    if is_new:
+        await onboarding_step_1(message, message.from_user.first_name)
+    else:
+        await main_menu_message(message)
 
 
 @router.message(F.voice)
@@ -191,50 +194,11 @@ async def handle_document(message: Message, bot: Bot):
     await message.answer(f"Записал {icon}\n{text}")
 
 
-@router.message(F.text == "!=")
-async def ai_exit(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("AI режим закрыт.")
-
-
-@router.message(F.text == "!?")
-async def diary_exit(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("Поиск закрыт.")
-
-
-@router.message(F.text.startswith("?"))
-async def diary_enter(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    await state.set_state(DiaryChat.active)
-    await state.update_data(history=[])
-
-    question = message.text[1:].strip()
-    SEARCH_HEADER = "🔍 Поиск по дневнику  |  выход — !?\n\n"
-
-    if not question:
-        await message.answer(f"{SEARCH_HEADER}Задавай вопросы — отвечу на основе твоих записей.")
-        return
-
-    sent = await message.answer("Ищу в дневнике...")
-    async with async_session() as session:
-        await get_or_create_user(session, user_id=user_id, username=message.from_user.username, first_name=message.from_user.first_name)
-        embedding = get_embedding(question)
-        entries = await search_entries(session, user_id, embedding, limit=5)
-
-    answer = answer_from_diary(question, entries)
-    history = [
-        {"role": "user", "content": question},
-        {"role": "assistant", "content": answer},
-    ]
-    await state.update_data(history=history)
-    await sent.edit_text(f"{SEARCH_HEADER}{answer}")
 
 
 @router.message(DiaryChat.active)
 async def diary_chat(message: Message, state: FSMContext):
     if not message.text:
-        await message.answer("В режиме дневника поддерживаю только текст. Для выхода — !?")
         return
 
     user_id = message.from_user.id
@@ -254,28 +218,9 @@ async def diary_chat(message: Message, state: FSMContext):
     await sent.edit_text(answer)
 
 
-@router.message(F.text.startswith("="))
-async def ai_enter(message: Message, state: FSMContext):
-    await state.set_state(AIChat.active)
-    await state.update_data(history=[])
-
-    question = message.text[1:].strip()
-    if not question:
-        await message.answer("AI режим включён. Пиши — отвечу. Чтобы выйти — напиши !=")
-        return
-
-    sent = await message.answer("Думаю...")
-    history = [{"role": "user", "content": question}]
-    answer = answer_ai(history)
-    history.append({"role": "assistant", "content": answer})
-    await state.update_data(history=history)
-    await sent.edit_text(answer)
-
-
 @router.message(AIChat.active)
 async def ai_chat(message: Message, state: FSMContext):
     if not message.text:
-        await message.answer("В AI режиме поддерживаю только текст. Для выхода — !=")
         return
 
     data = await state.get_data()

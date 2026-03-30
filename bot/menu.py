@@ -87,7 +87,86 @@ def _digest_kb(enabled: bool, hour: int, utc_offset: int, period: str, fmt: str)
 @menu_router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext):
     await state.clear()
+    await main_menu_message(message)
+
+
+async def main_menu_message(message: Message) -> None:
     await message.answer("Главное меню:", reply_markup=_main_kb())
+
+
+async def onboarding_step_1(message: Message, first_name: str) -> None:
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Дальше →", callback_data="onboard:2")],
+    ])
+    await message.answer(
+        f"👋 Привет, {first_name}!\n\n"
+        "Я твой личный дневник.\n\n"
+        "Просто пиши мне — мысли, события, идеи. "
+        "Или отправь голосовое, фото, PDF — сохраню всё.\n\n"
+        "⬤ ○ ○",
+        reply_markup=kb,
+    )
+
+
+@menu_router.callback_query(F.data == "onboard:2")
+async def cb_onboard_2(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="← Назад", callback_data="onboard:1"),
+            InlineKeyboardButton(text="Дальше →", callback_data="onboard:3"),
+        ],
+    ])
+    await call.message.edit_text(
+        "🔍 Умный поиск по прошлому\n\n"
+        "Спроси меня о любом периоде жизни — "
+        "найду нужные записи и отвечу на их основе.\n\n"
+        "«что я делал в январе?»\n"
+        "«как я себя чувствовал на прошлой неделе?»\n\n"
+        "○ ⬤ ○",
+        reply_markup=kb,
+    )
+    await call.answer()
+
+
+@menu_router.callback_query(F.data == "onboard:1")
+async def cb_onboard_1(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Дальше →", callback_data="onboard:2")],
+    ])
+    await call.message.edit_text(
+        "👋 Привет!\n\n"
+        "Я твой личный дневник.\n\n"
+        "Просто пиши мне — мысли, события, идеи. "
+        "Или отправь голосовое, фото, PDF — сохраню всё.\n\n"
+        "⬤ ○ ○",
+        reply_markup=kb,
+    )
+    await call.answer()
+
+
+@menu_router.callback_query(F.data == "onboard:3")
+async def cb_onboard_3(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="← Назад", callback_data="onboard:2"),
+            InlineKeyboardButton(text="Начать →", callback_data="onboard:done"),
+        ],
+    ])
+    await call.message.edit_text(
+        "✨ Что ещё умею\n\n"
+        "🌙 Вечерний чекин — напишу сам, ты только ответь\n"
+        "📋 Дайджест — обзор твоей жизни за неделю\n"
+        "🤖 Ассистент — поговори или задай любой вопрос\n\n"
+        "○ ○ ⬤",
+        reply_markup=kb,
+    )
+    await call.answer()
+
+
+@menu_router.callback_query(F.data == "onboard:done")
+async def cb_onboard_done(call: CallbackQuery):
+    await call.message.edit_text("Главное меню:", reply_markup=_main_kb())
+    await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:main")
@@ -102,9 +181,13 @@ async def cb_search(call: CallbackQuery, state: FSMContext):
     from bot.handlers import DiaryChat
     await state.set_state(DiaryChat.active)
     await state.update_data(history=[])
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="← Выйти из поиска", callback_data="menu:main")],
+    ])
     await call.message.edit_text(
-        "🔍 Поиск по дневнику включён.\nЗадавай вопросы — отвечу на основе записей.\n\n"
-        "Для выхода напиши /menu",
+        "🔍 Поиск по дневнику\n\n"
+        "Задавай вопросы — отвечу на основе твоих записей.",
+        reply_markup=kb,
     )
     await call.answer()
 
@@ -114,8 +197,13 @@ async def cb_ai(call: CallbackQuery, state: FSMContext):
     from bot.handlers import AIChat
     await state.set_state(AIChat.active)
     await state.update_data(history=[])
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="← Выйти из ассистента", callback_data="menu:main")],
+    ])
     await call.message.edit_text(
-        "🤖 Ассистент включён. Пиши — отвечу.\n\nДля выхода напиши /menu",
+        "🤖 Ассистент\n\n"
+        "Пиши — отвечу на любой вопрос.",
+        reply_markup=kb,
     )
     await call.answer()
 
