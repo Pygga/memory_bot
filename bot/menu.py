@@ -9,6 +9,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
+    ReplyKeyboardRemove,
 )
 
 from ai.claude import generate_digest
@@ -91,6 +92,8 @@ async def cmd_menu(message: Message, state: FSMContext):
 
 
 async def main_menu_message(message: Message) -> None:
+    tmp = await message.answer(".", reply_markup=ReplyKeyboardRemove())
+    await tmp.delete()
     await message.answer("Главное меню:", reply_markup=_main_kb())
 
 
