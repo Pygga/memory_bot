@@ -172,3 +172,10 @@ async def update_checkin_settings(
     await session.commit()
 
 
+async def update_language(session: AsyncSession, user_id: int, language: str) -> None:
+    user = await session.get(User, user_id)
+    if user is None:
+        return
+    user.language = language
+    await session.commit()
+

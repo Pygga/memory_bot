@@ -14,6 +14,7 @@ from ai.claude import answer_ai, answer_from_diary
 from ai.embeddings import get_embedding
 from ai.transcriber import transcribe_audio
 from ai.vision import describe_image
+from bot.i18n import t
 from db import async_session
 from db.models import EntryType
 from db.queries import find_similar_entries_not_today, get_or_create_user, save_entry, search_entries
@@ -29,6 +30,13 @@ class AIChat(StatesGroup):
 
 class DiaryChat(StatesGroup):
     active = State()
+
+
+async def _get_lang(user_id: int) -> str:
+    from db.models import User
+    async with async_session() as session:
+        user = await session.get(User, user_id)
+        return user.language if user else "ru"
 
 
 @router.message(CommandStart())
@@ -53,7 +61,8 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.message(F.voice)
 async def handle_voice(message: Message, bot: Bot):
-    await message.answer("Слушаю и записываю...")
+    lang = await _get_lang(message.from_user.id)
+    await message.answer(t(lang, "listening"))
 
     voice: Voice = message.voice
     file = await bot.get_file(voice.file_id)
@@ -69,7 +78,7 @@ async def handle_voice(message: Message, bot: Bot):
         os.unlink(tmp_path)
 
     if not transcript:
-        await message.answer("Не удалось распознать речь.")
+        await message.answer(t(lang, "speech_failed"))
         return
 
     embedding = get_embedding(transcript)
@@ -88,14 +97,15 @@ async def handle_voice(message: Message, bot: Bot):
             embedding=embedding,
         )
 
-    await message.answer(f"Записал 🎤\n_{transcript}_", parse_mode="Markdown")
+    await message.answer(t(lang, "saved_audio", transcript=transcript), parse_mode="Markdown")
 
 
 @router.message(F.photo)
 async def handle_photo(message: Message, bot: Bot):
-    await message.answer("Смотрю на фото...")
+    lang = await _get_lang(message.from_user.id)
+    await message.answer(t(lang, "looking_photo"))
 
-    photo = message.photo[-1]  # берём максимальное разрешение
+    photo = message.photo[-1]
     file = await bot.get_file(photo.file_id)
 
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
@@ -127,19 +137,20 @@ async def handle_photo(message: Message, bot: Bot):
             embedding=embedding,
         )
 
-    await message.answer(f"Записал 📷\n{description}")
+    await message.answer(t(lang, "saved_photo", description=description))
 
 
 @router.message(F.document)
 async def handle_document(message: Message, bot: Bot):
+    lang = await _get_lang(message.from_user.id)
     doc = message.document
     mime = doc.mime_type or ""
 
     if mime not in IMAGE_MIMETYPES and mime != "application/pdf":
-        await message.answer("Поддерживаю только изображения и PDF.")
+        await message.answer(t(lang, "unsupported_file"))
         return
 
-    await message.answer("Читаю файл...")
+    await message.answer(t(lang, "reading_file"))
 
     ext = ".pdf" if mime == "application/pdf" else ".jpg"
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
@@ -150,11 +161,9 @@ async def handle_document(message: Message, bot: Bot):
 
     try:
         if mime == "application/pdf":
-            # Сначала пробуем извлечь текст напрямую
             reader = PdfReader(tmp_path)
             text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
             if not text:
-                # Скан — конвертируем в изображения и читаем через OCR
                 pages = convert_from_path(tmp_path, dpi=200, first_page=1, last_page=5)
                 text = "\n\n".join(
                     pytesseract.image_to_string(page, lang="rus+eng")
@@ -162,7 +171,6 @@ async def handle_document(message: Message, bot: Bot):
                 ).strip()
             entry_type = EntryType.text
         else:
-            # Изображение-файл: OCR для документов, BLIP для фото
             from PIL import Image
             img = Image.open(tmp_path)
             ocr_text = pytesseract.image_to_string(img, lang="rus+eng").strip()
@@ -191,9 +199,7 @@ async def handle_document(message: Message, bot: Bot):
         )
 
     icon = "📄" if mime == "application/pdf" else "📷"
-    await message.answer(f"Записал {icon}\n{text}")
-
-
+    await message.answer(t(lang, "saved_file", icon=icon, text=text))
 
 
 @router.message(DiaryChat.active)
@@ -201,11 +207,12 @@ async def diary_chat(message: Message, state: FSMContext):
     if not message.text:
         return
 
+    lang = await _get_lang(message.from_user.id)
     user_id = message.from_user.id
     data = await state.get_data()
     history = data.get("history", [])
 
-    sent = await message.answer("Ищу в дневнике...")
+    sent = await message.answer(t(lang, "searching_diary"))
     async with async_session() as session:
         await get_or_create_user(session, user_id=user_id, username=message.from_user.username, first_name=message.from_user.first_name)
         embedding = get_embedding(message.text)
@@ -223,11 +230,12 @@ async def ai_chat(message: Message, state: FSMContext):
     if not message.text:
         return
 
+    lang = await _get_lang(message.from_user.id)
     data = await state.get_data()
     history = data.get("history", [])
     history.append({"role": "user", "content": message.text})
 
-    sent = await message.answer("Думаю...")
+    sent = await message.answer(t(lang, "thinking"))
     answer = answer_ai(history)
     history.append({"role": "assistant", "content": answer})
     await state.update_data(history=history)
@@ -239,6 +247,7 @@ async def handle_message(message: Message):
     if not message.text:
         return
 
+    lang = await _get_lang(message.from_user.id)
     user_id = message.from_user.id
 
     async with async_session() as session:
@@ -257,11 +266,11 @@ async def handle_message(message: Message):
             text=message.text,
             embedding=embedding,
         )
-        await message.answer("Записал в дневник ✓")
+        await message.answer(t(lang, "saved_entry"))
 
         similar = await find_similar_entries_not_today(session, user_id, embedding, limit=1) if len(message.text) > 30 else []
         if similar:
             old = similar[0]
             date_str = old.created_at.strftime("%d.%m.%Y")
             preview = old.text[:150] + ("..." if len(old.text) > 150 else "")
-            await message.answer(f"Кстати, {date_str} ты писал похожее:\n\n{preview}")
+            await message.answer(t(lang, "similar_entry", date=date_str, preview=preview))

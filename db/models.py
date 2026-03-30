@@ -24,6 +24,8 @@ class User(Base):
     first_name: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+    language: Mapped[str] = mapped_column(String(8), default="ru", server_default="ru")
+
     checkin_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     checkin_hour: Mapped[int] = mapped_column(Integer, default=21, server_default="21")
     checkin_minute: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

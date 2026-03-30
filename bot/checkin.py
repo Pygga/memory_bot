@@ -10,6 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from ai.claude import generate_digest
 from ai.embeddings import get_embedding
+from bot.i18n import t
 from db import async_session
 from db.models import EntryType
 from db.queries import (
@@ -56,7 +57,11 @@ async def handle_checkin_response(message: Message, state: FSMContext):
         )
 
     await state.clear()
-    await message.answer("Записал ✓")
+    from db.models import User
+    async with async_session() as session:
+        u = await session.get(User, message.from_user.id)
+        lang = u.language if u else "ru"
+    await message.answer(t(lang, "checkin_saved"))
 
 
 @checkin_router.message(Command("checkin"))
@@ -249,7 +254,7 @@ async def _check_and_send_checkins(bot, storage) -> None:
         user_local = now_utc + timedelta(hours=user.checkin_utc_offset)
         if user_local.hour == user.checkin_hour and user_local.minute == user.checkin_minute:
             try:
-                await bot.send_message(user.id, CHECKIN_QUESTION)
+                await bot.send_message(user.id, t(user.language or "ru", "checkin_question"))
                 key = StorageKey(bot_id=bot.id, chat_id=user.id, user_id=user.id)
                 ctx = FSMContext(storage=storage, key=key)
                 await ctx.set_state(CheckinPending.waiting)

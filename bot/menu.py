@@ -16,21 +16,30 @@ from aiogram.types import (
 )
 
 from ai.claude import generate_digest
+from bot.i18n import t
 from db import async_session
 from db.queries import (
     get_entries_for_period,
     get_or_create_user,
     update_checkin_settings,
     update_digest_settings,
+    update_language,
 )
 
 logger = logging.getLogger(__name__)
 menu_router = Router()
 
 
-def _location_kb() -> ReplyKeyboardMarkup:
+async def _get_lang(user_id: int) -> str:
+    from db.models import User
+    async with async_session() as session:
+        user = await session.get(User, user_id)
+        return user.language if user else "ru"
+
+
+def _location_kb(lang: str) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📍 Отправить геолокацию", request_location=True)]],
+        keyboard=[[KeyboardButton(text=t(lang, "location_btn"), request_location=True)]],
         resize_keyboard=True,
         one_time_keyboard=True,
     )
@@ -55,22 +64,22 @@ class MenuState(StatesGroup):
 # ── Keyboards ──────────────────────────────────────────────────────────────
 
 
-def _main_kb() -> InlineKeyboardMarkup:
+def _main_kb(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔍 Поиск по дневнику", callback_data="menu:search")],
+        [InlineKeyboardButton(text=t(lang, "search_title"), callback_data="menu:search")],
         [
-            InlineKeyboardButton(text="🤖 Ассистент", callback_data="menu:ai"),
-            InlineKeyboardButton(text="📋 Дайджест", callback_data="menu:digest"),
+            InlineKeyboardButton(text=t(lang, "ai_title"), callback_data="menu:ai"),
+            InlineKeyboardButton(text=t(lang, "digest_title"), callback_data="menu:digest"),
         ],
         [
-            InlineKeyboardButton(text="🌙 Чекин", callback_data="menu:checkin"),
-            InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings"),
+            InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin"),
+            InlineKeyboardButton(text=t(lang, "settings_title"), callback_data="menu:settings"),
         ],
     ])
 
 
-def _checkin_kb(enabled: bool, hour: int, minute: int, utc_offset: int) -> InlineKeyboardMarkup:
-    toggle = "✅ Включён" if enabled else "❌ Выключен"
+def _checkin_kb(lang: str, enabled: bool, hour: int, minute: int, utc_offset: int) -> InlineKeyboardMarkup:
+    toggle = t(lang, "checkin_enabled") if enabled else t(lang, "checkin_disabled")
     sign = "+" if utc_offset >= 0 else ""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=toggle, callback_data="menu:checkin:toggle")],
@@ -78,29 +87,29 @@ def _checkin_kb(enabled: bool, hour: int, minute: int, utc_offset: int) -> Inlin
             text=f"🕐 {hour:02d}:{minute:02d} (UTC{sign}{utc_offset})",
             callback_data="menu:checkin:time",
         )],
-        [InlineKeyboardButton(text="← Назад", callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
     ])
 
 
-PERIOD_LABELS = {"week": "📅 Раз в неделю", "month": "📅 Раз в месяц"}
+PERIOD_KEYS = {"week": "digest_period_week", "month": "digest_period_month"}
 PERIOD_NEXT = {"week": "month", "month": "week"}
-FORMAT_LABELS = {"brief": "📝 Краткий", "full": "📄 Полный", "emotional": "💬 Эмоции"}
+FORMAT_KEYS = {"brief": "digest_format_brief", "full": "digest_format_full", "emotional": "digest_format_emotional"}
 FORMAT_NEXT = {"brief": "full", "full": "emotional", "emotional": "brief"}
 
 
-def _digest_kb(enabled: bool, hour: int, utc_offset: int, period: str, fmt: str) -> InlineKeyboardMarkup:
-    toggle = "✅ Включён" if enabled else "❌ Выключен"
+def _digest_kb(lang: str, enabled: bool, hour: int, utc_offset: int, period: str, fmt: str) -> InlineKeyboardMarkup:
+    toggle = t(lang, "checkin_enabled") if enabled else t(lang, "checkin_disabled")
     sign = "+" if utc_offset >= 0 else ""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=toggle, callback_data="menu:digest:toggle")],
-        [InlineKeyboardButton(text="📨 Получить сейчас", callback_data="menu:digest:now")],
-        [InlineKeyboardButton(text=PERIOD_LABELS.get(period, period), callback_data="menu:digest:period")],
-        [InlineKeyboardButton(text=FORMAT_LABELS.get(fmt, fmt), callback_data="menu:digest:format")],
+        [InlineKeyboardButton(text=t(lang, "digest_get_now"), callback_data="menu:digest:now")],
+        [InlineKeyboardButton(text=t(lang, PERIOD_KEYS.get(period, "digest_period_week")), callback_data="menu:digest:period")],
+        [InlineKeyboardButton(text=t(lang, FORMAT_KEYS.get(fmt, "digest_format_full")), callback_data="menu:digest:format")],
         [InlineKeyboardButton(
             text=f"🕐 {hour:02d}:00 (UTC{sign}{utc_offset})",
             callback_data="menu:digest:time",
         )],
-        [InlineKeyboardButton(text="← Назад", callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
     ])
 
 
@@ -114,133 +123,147 @@ async def cmd_menu(message: Message, state: FSMContext):
 
 
 async def main_menu_message(message: Message) -> None:
+    lang = await _get_lang(message.from_user.id)
     tmp = await message.answer(".", reply_markup=ReplyKeyboardRemove())
     await tmp.delete()
-    await message.answer("Главное меню:", reply_markup=_main_kb())
+    await message.answer(t(lang, "main_menu"), reply_markup=_main_kb(lang))
 
 
 async def onboarding_step_1(message: Message, first_name: str) -> None:
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Дальше →", callback_data="onboard:2")],
+        [InlineKeyboardButton(text="Дальше →  /  Next →", callback_data="onboard:lang")],
     ])
     await message.answer(
-        f"👋 Привет, {first_name}!\n\n"
-        "Я твой личный дневник.\n\n"
-        "Просто пиши мне — мысли, события, идеи. "
-        "Или отправь голосовое, фото, PDF — сохраню всё.\n\n"
-        "⬤ ○ ○",
-        reply_markup=kb,
+        f"👋 Привет, {first_name}! / Hey, {first_name}!\n\n"
+        "Выбери язык / Choose language:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🇷🇺 Русский", callback_data="onboard:lang:ru"),
+                InlineKeyboardButton(text="🇬🇧 English", callback_data="onboard:lang:en"),
+            ],
+        ]),
     )
+
+
+@menu_router.callback_query(F.data.in_({"onboard:lang:ru", "onboard:lang:en"}))
+async def cb_onboard_lang(call: CallbackQuery):
+    lang = call.data.split(":")[-1]
+    async with async_session() as session:
+        await get_or_create_user(session, call.from_user.id, call.from_user.username, call.from_user.first_name)
+        await update_language(session, call.from_user.id, lang)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "onboard_next"), callback_data="onboard:2")],
+    ])
+    await call.message.edit_text(t(lang, "onboard_1", name=call.from_user.first_name), reply_markup=kb)
+    await call.answer()
 
 
 @menu_router.callback_query(F.data == "onboard:2")
 async def cb_onboard_2(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="← Назад", callback_data="onboard:1"),
-            InlineKeyboardButton(text="Дальше →", callback_data="onboard:3"),
+            InlineKeyboardButton(text=t(lang, "onboard_back"), callback_data="onboard:1"),
+            InlineKeyboardButton(text=t(lang, "onboard_next"), callback_data="onboard:3"),
         ],
     ])
-    await call.message.edit_text(
-        "🔍 Умный поиск по прошлому\n\n"
-        "Спроси меня о любом периоде жизни — "
-        "найду нужные записи и отвечу на их основе.\n\n"
-        "«что я делал в январе?»\n"
-        "«как я себя чувствовал на прошлой неделе?»\n\n"
-        "○ ⬤ ○",
-        reply_markup=kb,
-    )
+    await call.message.edit_text(t(lang, "onboard_2"), reply_markup=kb)
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "onboard:1")
 async def cb_onboard_1(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Дальше →", callback_data="onboard:2")],
+        [InlineKeyboardButton(text=t(lang, "onboard_next"), callback_data="onboard:2")],
     ])
-    await call.message.edit_text(
-        "👋 Привет!\n\n"
-        "Я твой личный дневник.\n\n"
-        "Просто пиши мне — мысли, события, идеи. "
-        "Или отправь голосовое, фото, PDF — сохраню всё.\n\n"
-        "⬤ ○ ○",
-        reply_markup=kb,
-    )
+    await call.message.edit_text(t(lang, "onboard_1_return"), reply_markup=kb)
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "onboard:3")
 async def cb_onboard_3(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="← Назад", callback_data="onboard:2"),
-            InlineKeyboardButton(text="Начать →", callback_data="onboard:done"),
+            InlineKeyboardButton(text=t(lang, "onboard_back"), callback_data="onboard:2"),
+            InlineKeyboardButton(text=t(lang, "onboard_start"), callback_data="onboard:done"),
         ],
     ])
-    await call.message.edit_text(
-        "✨ Что ещё умею\n\n"
-        "🌙 Вечерний чекин — напишу сам, ты только ответь\n"
-        "📋 Дайджест — обзор твоей жизни за неделю\n"
-        "🤖 Ассистент — поговори или задай любой вопрос\n\n"
-        "○ ○ ⬤",
-        reply_markup=kb,
-    )
+    await call.message.edit_text(t(lang, "onboard_3"), reply_markup=kb)
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "onboard:done")
 async def cb_onboard_done(call: CallbackQuery):
-    await call.message.edit_text("Главное меню:", reply_markup=_main_kb())
+    lang = await _get_lang(call.from_user.id)
+    await call.message.edit_text(t(lang, "main_menu"), reply_markup=_main_kb(lang))
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:main")
 async def cb_main(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.message.edit_text("Главное меню:", reply_markup=_main_kb())
+    lang = await _get_lang(call.from_user.id)
+    await call.message.edit_text(t(lang, "main_menu"), reply_markup=_main_kb(lang))
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:search")
 async def cb_search(call: CallbackQuery, state: FSMContext):
     from bot.handlers import DiaryChat
+    lang = await _get_lang(call.from_user.id)
     await state.set_state(DiaryChat.active)
     await state.update_data(history=[])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="← Выйти из поиска", callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "search_exit"), callback_data="menu:main")],
     ])
-    await call.message.edit_text(
-        "🔍 Поиск по дневнику\n\n"
-        "Задавай вопросы — отвечу на основе твоих записей.",
-        reply_markup=kb,
-    )
+    await call.message.edit_text(t(lang, "search_prompt"), reply_markup=kb)
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:ai")
 async def cb_ai(call: CallbackQuery, state: FSMContext):
     from bot.handlers import AIChat
+    lang = await _get_lang(call.from_user.id)
     await state.set_state(AIChat.active)
     await state.update_data(history=[])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="← Выйти из ассистента", callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "ai_exit"), callback_data="menu:main")],
     ])
-    await call.message.edit_text(
-        "🤖 Ассистент\n\n"
-        "Пиши — отвечу на любой вопрос.",
-        reply_markup=kb,
-    )
+    await call.message.edit_text(t(lang, "ai_prompt"), reply_markup=kb)
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:settings")
 async def cb_settings(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
+    next_lang = "en" if lang == "ru" else "ru"
+    lang_label = "🌐 RU → EN" if lang == "ru" else "🌐 EN → RU"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🌙 Чекин", callback_data="menu:checkin")],
-        [InlineKeyboardButton(text="📋 Дайджест", callback_data="menu:digest")],
-        [InlineKeyboardButton(text="← Назад", callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin")],
+        [InlineKeyboardButton(text=t(lang, "digest_title"), callback_data="menu:digest")],
+        [InlineKeyboardButton(text=lang_label, callback_data=f"menu:lang:{next_lang}")],
+        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
     ])
-    await call.message.edit_text("⚙️ Настройки:", reply_markup=kb)
+    await call.message.edit_text(t(lang, "settings_menu"), reply_markup=kb)
+    await call.answer()
+
+
+@menu_router.callback_query(F.data.startswith("menu:lang:"))
+async def cb_lang(call: CallbackQuery):
+    new_lang = call.data.split(":")[-1]
+    async with async_session() as session:
+        await update_language(session, call.from_user.id, new_lang)
+    next_lang = "en" if new_lang == "ru" else "ru"
+    lang_label = "🌐 RU → EN" if new_lang == "ru" else "🌐 EN → RU"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(new_lang, "checkin_title"), callback_data="menu:checkin")],
+        [InlineKeyboardButton(text=t(new_lang, "digest_title"), callback_data="menu:digest")],
+        [InlineKeyboardButton(text=lang_label, callback_data=f"menu:lang:{next_lang}")],
+        [InlineKeyboardButton(text=t(new_lang, "back"), callback_data="menu:main")],
+    ])
+    await call.message.edit_text(t(new_lang, "settings_menu"), reply_markup=kb)
     await call.answer()
 
 
@@ -249,20 +272,19 @@ async def cb_settings(call: CallbackQuery):
 
 @menu_router.callback_query(F.data == "menu:checkin")
 async def cb_checkin(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     async with async_session() as session:
         user = await get_or_create_user(
             session, call.from_user.id, call.from_user.username, call.from_user.first_name
         )
-        kb = _checkin_kb(
-            user.checkin_enabled, user.checkin_hour,
-            user.checkin_minute, user.checkin_utc_offset,
-        )
-    await call.message.edit_text("🌙 Вечерний чекин:", reply_markup=kb)
+        kb = _checkin_kb(lang, user.checkin_enabled, user.checkin_hour, user.checkin_minute, user.checkin_utc_offset)
+    await call.message.edit_text(t(lang, "checkin_menu"), reply_markup=kb)
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:checkin:toggle")
 async def cb_checkin_toggle(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     async with async_session() as session:
         user = await get_or_create_user(
             session, call.from_user.id, call.from_user.username, call.from_user.first_name
@@ -270,31 +292,32 @@ async def cb_checkin_toggle(call: CallbackQuery):
         new_enabled = not user.checkin_enabled
         hour, minute, offset = user.checkin_hour, user.checkin_minute, user.checkin_utc_offset
         await update_checkin_settings(session, call.from_user.id, enabled=new_enabled)
-    await call.message.edit_reply_markup(reply_markup=_checkin_kb(new_enabled, hour, minute, offset))
-    await call.answer("Включён ✅" if new_enabled else "Выключен ❌")
+    await call.message.edit_reply_markup(reply_markup=_checkin_kb(lang, new_enabled, hour, minute, offset))
+    await call.answer(t(lang, "checkin_toggled_on") if new_enabled else t(lang, "checkin_toggled_off"))
 
 
 @menu_router.callback_query(F.data == "menu:checkin:time")
 async def cb_checkin_time(call: CallbackQuery, state: FSMContext):
+    lang = await _get_lang(call.from_user.id)
     await state.set_state(MenuState.checkin_time)
     await call.message.answer(
-        "Отправь геолокацию — определю часовой пояс автоматически.\n"
-        "Или введи вручную: `21:00 +3`",
+        t(lang, "checkin_time_prompt"),
         parse_mode="Markdown",
-        reply_markup=_location_kb(),
+        reply_markup=_location_kb(lang),
     )
     await call.answer()
 
 
 @menu_router.message(MenuState.checkin_time, F.text)
 async def handle_checkin_time(message: Message, state: FSMContext):
+    lang = await _get_lang(message.from_user.id)
     try:
         parts = message.text.strip().split()
         hour, minute = map(int, parts[0].split(":"))
         utc_offset = int(parts[1])
         assert 0 <= hour <= 23 and 0 <= minute <= 59 and -12 <= utc_offset <= 14
     except Exception:
-        await message.answer("Неверный формат. Пример: `21:00 +3`", parse_mode="Markdown")
+        await message.answer(t(lang, "checkin_time_error"), parse_mode="Markdown")
         return
 
     async with async_session() as session:
@@ -305,18 +328,16 @@ async def handle_checkin_time(message: Message, state: FSMContext):
         await update_checkin_settings(session, message.from_user.id, hour=hour, minute=minute, utc_offset=utc_offset)
 
     await state.clear()
-    await message.answer(
-        "🌙 Вечерний чекин:",
-        reply_markup=_checkin_kb(enabled, hour, minute, utc_offset),
-    )
+    await message.answer(t(lang, "checkin_menu"), reply_markup=_checkin_kb(lang, enabled, hour, minute, utc_offset))
 
 
 @menu_router.message(MenuState.checkin_time, F.location)
 async def handle_checkin_location(message: Message, state: FSMContext):
+    lang = await _get_lang(message.from_user.id)
     utc_offset = _utc_offset_from_location(message.location.latitude, message.location.longitude)
     if utc_offset is None:
         await message.answer(
-            "Не удалось определить часовой пояс. Введи вручную: `21:00 +3`",
+            t(lang, "location_failed", example="21:00 +3"),
             parse_mode="Markdown",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -331,11 +352,8 @@ async def handle_checkin_location(message: Message, state: FSMContext):
 
     await state.clear()
     sign = "+" if utc_offset >= 0 else ""
-    await message.answer(
-        f"Часовой пояс определён: UTC{sign}{utc_offset}",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    await message.answer("🌙 Вечерний чекин:", reply_markup=_checkin_kb(enabled, hour, minute, utc_offset))
+    await message.answer(t(lang, "location_detected", sign=sign, offset=utc_offset), reply_markup=ReplyKeyboardRemove())
+    await message.answer(t(lang, "checkin_menu"), reply_markup=_checkin_kb(lang, enabled, hour, minute, utc_offset))
 
 
 # ── Digest ─────────────────────────────────────────────────────────────────
@@ -343,20 +361,19 @@ async def handle_checkin_location(message: Message, state: FSMContext):
 
 @menu_router.callback_query(F.data == "menu:digest")
 async def cb_digest(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     async with async_session() as session:
         user = await get_or_create_user(
             session, call.from_user.id, call.from_user.username, call.from_user.first_name
         )
-        kb = _digest_kb(
-            user.digest_enabled, user.digest_hour, user.digest_utc_offset,
-            user.digest_period, user.digest_format,
-        )
-    await call.message.edit_text("📋 Дайджест:", reply_markup=kb)
+        kb = _digest_kb(lang, user.digest_enabled, user.digest_hour, user.digest_utc_offset, user.digest_period, user.digest_format)
+    await call.message.edit_text(t(lang, "digest_menu"), reply_markup=kb)
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:digest:toggle")
 async def cb_digest_toggle(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     async with async_session() as session:
         user = await get_or_create_user(
             session, call.from_user.id, call.from_user.username, call.from_user.first_name
@@ -366,12 +383,13 @@ async def cb_digest_toggle(call: CallbackQuery):
             user.digest_hour, user.digest_utc_offset, user.digest_period, user.digest_format
         )
         await update_digest_settings(session, call.from_user.id, enabled=new_enabled)
-    await call.message.edit_reply_markup(reply_markup=_digest_kb(new_enabled, hour, offset, period, fmt))
-    await call.answer("Включён ✅" if new_enabled else "Выключен ❌")
+    await call.message.edit_reply_markup(reply_markup=_digest_kb(lang, new_enabled, hour, offset, period, fmt))
+    await call.answer(t(lang, "checkin_toggled_on") if new_enabled else t(lang, "checkin_toggled_off"))
 
 
 @menu_router.callback_query(F.data == "menu:digest:period")
 async def cb_digest_period(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     async with async_session() as session:
         user = await get_or_create_user(
             session, call.from_user.id, call.from_user.username, call.from_user.first_name
@@ -382,12 +400,13 @@ async def cb_digest_period(call: CallbackQuery):
             user.digest_enabled, user.digest_hour, user.digest_utc_offset, user.digest_format
         )
         await update_digest_settings(session, call.from_user.id, period=new_period, day=new_day)
-    await call.message.edit_reply_markup(reply_markup=_digest_kb(enabled, hour, offset, new_period, fmt))
+    await call.message.edit_reply_markup(reply_markup=_digest_kb(lang, enabled, hour, offset, new_period, fmt))
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:digest:format")
 async def cb_digest_format(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
     async with async_session() as session:
         user = await get_or_create_user(
             session, call.from_user.id, call.from_user.username, call.from_user.first_name
@@ -397,31 +416,32 @@ async def cb_digest_format(call: CallbackQuery):
             user.digest_enabled, user.digest_hour, user.digest_utc_offset, user.digest_period
         )
         await update_digest_settings(session, call.from_user.id, format=new_fmt)
-    await call.message.edit_reply_markup(reply_markup=_digest_kb(enabled, hour, offset, period, new_fmt))
+    await call.message.edit_reply_markup(reply_markup=_digest_kb(lang, enabled, hour, offset, period, new_fmt))
     await call.answer()
 
 
 @menu_router.callback_query(F.data == "menu:digest:time")
 async def cb_digest_time(call: CallbackQuery, state: FSMContext):
+    lang = await _get_lang(call.from_user.id)
     await state.set_state(MenuState.digest_time)
     await call.message.answer(
-        "Отправь геолокацию — определю часовой пояс автоматически.\n"
-        "Или введи вручную: `20:00 +3`",
+        t(lang, "digest_time_prompt"),
         parse_mode="Markdown",
-        reply_markup=_location_kb(),
+        reply_markup=_location_kb(lang),
     )
     await call.answer()
 
 
 @menu_router.message(MenuState.digest_time, F.text)
 async def handle_digest_time(message: Message, state: FSMContext):
+    lang = await _get_lang(message.from_user.id)
     try:
         parts = message.text.strip().split()
         hour = int(parts[0].split(":")[0])
         utc_offset = int(parts[1])
         assert 0 <= hour <= 23 and -12 <= utc_offset <= 14
     except Exception:
-        await message.answer("Неверный формат. Пример: `20:00 +3`", parse_mode="Markdown")
+        await message.answer(t(lang, "digest_time_error"), parse_mode="Markdown")
         return
 
     async with async_session() as session:
@@ -432,18 +452,16 @@ async def handle_digest_time(message: Message, state: FSMContext):
         await update_digest_settings(session, message.from_user.id, hour=hour, utc_offset=utc_offset)
 
     await state.clear()
-    await message.answer(
-        "📋 Дайджест:",
-        reply_markup=_digest_kb(enabled, hour, utc_offset, period, fmt),
-    )
+    await message.answer(t(lang, "digest_menu"), reply_markup=_digest_kb(lang, enabled, hour, utc_offset, period, fmt))
 
 
 @menu_router.message(MenuState.digest_time, F.location)
 async def handle_digest_location(message: Message, state: FSMContext):
+    lang = await _get_lang(message.from_user.id)
     utc_offset = _utc_offset_from_location(message.location.latitude, message.location.longitude)
     if utc_offset is None:
         await message.answer(
-            "Не удалось определить часовой пояс. Введи вручную: `20:00 +3`",
+            t(lang, "location_failed", example="20:00 +3"),
             parse_mode="Markdown",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -459,31 +477,27 @@ async def handle_digest_location(message: Message, state: FSMContext):
 
     await state.clear()
     sign = "+" if utc_offset >= 0 else ""
-    await message.answer(
-        f"Часовой пояс определён: UTC{sign}{utc_offset}",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    await message.answer("📋 Дайджест:", reply_markup=_digest_kb(enabled, hour, utc_offset, period, fmt))
+    await message.answer(t(lang, "location_detected", sign=sign, offset=utc_offset), reply_markup=ReplyKeyboardRemove())
+    await message.answer(t(lang, "digest_menu"), reply_markup=_digest_kb(lang, enabled, hour, utc_offset, period, fmt))
 
 
 @menu_router.callback_query(F.data == "menu:digest:now")
 async def cb_digest_now(call: CallbackQuery):
-    await call.answer("Генерирую...")
+    lang = await _get_lang(call.from_user.id)
+    await call.answer(t(lang, "digest_generating"))
     async with async_session() as session:
         user = await get_or_create_user(
             session, call.from_user.id, call.from_user.username, call.from_user.first_name
         )
         days = 7 if user.digest_period == "week" else 30
-        period_label = "неделю" if user.digest_period == "week" else "месяц"
+        period_label = t(lang, "digest_period_label_week") if user.digest_period == "week" else t(lang, "digest_period_label_month")
         fmt = user.digest_format
         entries = await get_entries_for_period(session, call.from_user.id, days=days)
 
     if not entries:
-        await call.message.answer("За этот период записей нет.")
+        await call.message.answer(t(lang, "digest_no_entries"))
         return
 
-    sent = await call.message.answer("Генерирую дайджест...")
+    sent = await call.message.answer(t(lang, "digest_generating"))
     text = generate_digest(entries, fmt=fmt, period=period_label)
-    await sent.edit_text(f"📋 Дайджест за {period_label}:\n\n{text}")
-
-
+    await sent.edit_text(t(lang, "digest_result", period=period_label, text=text))
