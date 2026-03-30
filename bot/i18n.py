@@ -133,8 +133,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Wrong format. Example: `21:00 +3`",
     },
     "checkin_question": {
-        "ru": "Как прошел день? 🌙",
-        "en": "How was your day? 🌙",
+        "ru": "{name}, добрый вечер 🌙 Поделись впечатлениями о сегодняшнем дне?",
+        "en": "{name}, good evening 🌙 How was your day?",
     },
     "checkin_saved": {
         "ru": "Записал ✓",

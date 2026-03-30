@@ -251,7 +251,7 @@ async def _check_and_send_checkins(bot, storage) -> None:
         user_local = now_utc + timedelta(hours=user.checkin_utc_offset)
         if user_local.hour == user.checkin_hour and user_local.minute == user.checkin_minute:
             try:
-                await bot.send_message(user.id, t(user.language or "ru", "checkin_question"))
+                await bot.send_message(user.id, t(user.language or "ru", "checkin_question", name=user.first_name or ""))
                 key = StorageKey(bot_id=bot.id, chat_id=user.id, user_id=user.id)
                 ctx = FSMContext(storage=storage, key=key)
                 await ctx.set_state(CheckinPending.waiting)
