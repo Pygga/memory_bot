@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import Entry, EntryType, User
@@ -178,6 +178,38 @@ async def update_language(session: AsyncSession, user_id: int, language: str) ->
         return
     user.language = language
     await session.commit()
+
+
+async def get_admin_stats(session: AsyncSession) -> dict:
+    """Статистика для админа"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=7)
+
+    total_users = (await session.execute(select(func.count()).select_from(User))).scalar()
+    total_entries = (await session.execute(select(func.count()).select_from(Entry))).scalar()
+    new_today = (await session.execute(
+        select(func.count()).select_from(User).where(User.created_at >= today_start)
+    )).scalar()
+    active_week = (await session.execute(
+        select(func.count(func.distinct(Entry.user_id)))
+        .where(Entry.created_at >= week_start)
+    )).scalar()
+
+    return {
+        "total_users": total_users,
+        "total_entries": total_entries,
+        "new_today": new_today,
+        "active_week": active_week,
+    }
+
+
+async def get_recent_users(session: AsyncSession, limit: int = 10) -> list[User]:
+    """Последние зарегистрированные пользователи"""
+    result = await session.execute(
+        select(User).order_by(User.created_at.desc()).limit(limit)
+    )
+    return list(result.scalars().all())
 
 
 async def get_recent_checkins(

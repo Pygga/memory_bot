@@ -8,6 +8,7 @@ load_dotenv()  # Загружаем .env до импорта модулей пр
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
+from bot.admin import admin_router
 from bot.checkin import checkin_router, start_scheduler
 from bot.handlers import router
 from bot.menu import menu_router
@@ -25,6 +26,7 @@ async def main():
     ])
     dp = Dispatcher(storage=storage)
 
+    dp.include_router(admin_router)     # Admin commands (ADMIN_ID only)
     dp.include_router(menu_router)     # FSM: MenuState (время чекина/дайджеста)
     dp.include_router(checkin_router)  # FSM: CheckinPending
     dp.include_router(router)
