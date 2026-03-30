@@ -179,3 +179,17 @@ async def update_language(session: AsyncSession, user_id: int, language: str) ->
     user.language = language
     await session.commit()
 
+
+async def get_recent_checkins(
+    session: AsyncSession,
+    user_id: int,
+    limit: int = 3,
+) -> list[Entry]:
+    result = await session.execute(
+        select(Entry)
+        .where(Entry.user_id == user_id)
+        .where(Entry.text.like("[Чекин]%"))
+        .order_by(Entry.created_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())

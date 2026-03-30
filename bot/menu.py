@@ -21,6 +21,7 @@ from db import async_session
 from db.queries import (
     get_entries_for_period,
     get_or_create_user,
+    get_recent_checkins,
     update_checkin_settings,
     update_digest_settings,
     update_language,
@@ -58,6 +59,7 @@ def _utc_offset_from_location(lat: float, lng: float) -> int | None:
 
 class MenuState(StatesGroup):
     checkin_time = State()
+    checkin_manual = State()
     digest_time = State()
 
 
@@ -87,7 +89,7 @@ def _checkin_kb(lang: str, enabled: bool, hour: int, minute: int, utc_offset: in
             text=f"🕐 {hour:02d}:{minute:02d} (UTC{sign}{utc_offset})",
             callback_data="menu:checkin:time",
         )],
-        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
+        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:settings")],
     ])
 
 
@@ -241,7 +243,7 @@ async def cb_settings(call: CallbackQuery):
     next_lang = "en" if lang == "ru" else "ru"
     lang_label = "🌐 RU → EN" if lang == "ru" else "🌐 EN → RU"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin")],
+        [InlineKeyboardButton(text=t(lang, "checkin_title"), callback_data="menu:checkin:settings")],
         [InlineKeyboardButton(text=t(lang, "digest_title"), callback_data="menu:digest")],
         [InlineKeyboardButton(text=lang_label, callback_data=f"menu:lang:{next_lang}")],
         [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
@@ -272,6 +274,66 @@ async def cb_lang(call: CallbackQuery):
 
 @menu_router.callback_query(F.data == "menu:checkin")
 async def cb_checkin(call: CallbackQuery):
+    lang = await _get_lang(call.from_user.id)
+    async with async_session() as session:
+        user = await get_or_create_user(
+            session, call.from_user.id, call.from_user.username, call.from_user.first_name
+        )
+        entries = await get_recent_checkins(session, call.from_user.id)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "checkin_write_now"), callback_data="menu:checkin:write")],
+        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:main")],
+    ])
+
+    if entries:
+        lines = "\n\n".join(
+            f"*{e.created_at.strftime('%d.%m.%Y')}*\n{e.text.removeprefix('[Чекин] ')}"
+            for e in entries
+        )
+        text = t(lang, "checkin_page_title") + "\n\n" + t(lang, "checkin_recent", entries=lines)
+    else:
+        text = t(lang, "checkin_page_title") + "\n\n" + t(lang, "checkin_no_entries")
+
+    await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await call.answer()
+
+
+@menu_router.callback_query(F.data == "menu:checkin:write")
+async def cb_checkin_write(call: CallbackQuery, state: FSMContext):
+    lang = await _get_lang(call.from_user.id)
+    await state.set_state(MenuState.checkin_manual)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "back"), callback_data="menu:checkin")],
+    ])
+    await call.message.edit_text(
+        t(lang, "checkin_write_prompt", name=call.from_user.first_name or ""),
+        reply_markup=kb,
+    )
+    await call.answer()
+
+
+@menu_router.message(MenuState.checkin_manual)
+async def handle_checkin_manual(message: Message, state: FSMContext):
+    if not message.text:
+        return
+    from ai.embeddings import get_embedding
+    from db.models import EntryType
+    from db.queries import save_entry
+    lang = await _get_lang(message.from_user.id)
+    text = f"[Чекин] {message.text}"
+    embedding = get_embedding(text)
+    async with async_session() as session:
+        await get_or_create_user(
+            session, message.from_user.id, message.from_user.username, message.from_user.first_name
+        )
+        await save_entry(session, user_id=message.from_user.id, type=EntryType.text, text=text, embedding=embedding)
+    await state.clear()
+    await message.answer(t(lang, "checkin_saved"))
+
+
+@menu_router.callback_query(F.data == "menu:checkin:settings")
+async def cb_checkin_settings(call: CallbackQuery):
     lang = await _get_lang(call.from_user.id)
     async with async_session() as session:
         user = await get_or_create_user(

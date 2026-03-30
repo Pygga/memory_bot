@@ -140,6 +140,26 @@ STRINGS: dict[str, dict[str, str]] = {
         "ru": "Записал ✓",
         "en": "Saved ✓",
     },
+    "checkin_page_title": {
+        "ru": "🌙 Чекин",
+        "en": "🌙 Check-in",
+    },
+    "checkin_write_now": {
+        "ru": "✏️ Написать сейчас",
+        "en": "✏️ Write now",
+    },
+    "checkin_no_entries": {
+        "ru": "Записей чекина пока нет.",
+        "en": "No check-in entries yet.",
+    },
+    "checkin_recent": {
+        "ru": "Последние записи:\n\n{entries}",
+        "en": "Recent entries:\n\n{entries}",
+    },
+    "checkin_write_prompt": {
+        "ru": "{name}, как прошёл день? 🌙",
+        "en": "{name}, how was your day? 🌙",
+    },
 
     # ── Digest ────────────────────────────────────────────────────────────────
     "digest_menu": {
