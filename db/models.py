@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 import enum
 
@@ -23,6 +23,18 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(String(64))
     first_name: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    checkin_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    checkin_hour: Mapped[int] = mapped_column(Integer, default=21, server_default="21")
+    checkin_minute: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    checkin_utc_offset: Mapped[int] = mapped_column(Integer, default=5, server_default="5")
+
+    digest_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    digest_period: Mapped[str] = mapped_column(String(16), default="week", server_default="week")
+    digest_format: Mapped[str] = mapped_column(String(16), default="full", server_default="full")
+    digest_hour: Mapped[int] = mapped_column(Integer, default=20, server_default="20")
+    digest_utc_offset: Mapped[int] = mapped_column(Integer, default=5, server_default="5")
+    digest_day: Mapped[int] = mapped_column(Integer, default=6, server_default="6")
 
     entries: Mapped[list["Entry"]] = relationship(back_populates="user")
 

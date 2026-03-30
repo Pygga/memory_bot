@@ -3,22 +3,32 @@ import tempfile
 
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, Voice
 import pytesseract
 from pdf2image import convert_from_path
 from PyPDF2 import PdfReader
 
-from ai.claude import answer_from_diary
+from ai.claude import answer_ai, answer_from_diary
 from ai.embeddings import get_embedding
 from ai.transcriber import transcribe_audio
 from ai.vision import describe_image
 from db import async_session
 from db.models import EntryType
-from db.queries import get_or_create_user, save_entry, search_entries
+from db.queries import find_similar_entries_not_today, get_or_create_user, save_entry, search_entries
 
 IMAGE_MIMETYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 router = Router()
+
+
+class AIChat(StatesGroup):
+    active = State()
+
+
+class DiaryChat(StatesGroup):
+    active = State()
 
 
 @router.message(CommandStart())
@@ -181,6 +191,104 @@ async def handle_document(message: Message, bot: Bot):
     await message.answer(f"Записал {icon}\n{text}")
 
 
+@router.message(F.text == "!=")
+async def ai_exit(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("AI режим закрыт.")
+
+
+@router.message(F.text == "!?")
+async def diary_exit(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Поиск закрыт.")
+
+
+@router.message(F.text.startswith("?"))
+async def diary_enter(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    await state.set_state(DiaryChat.active)
+    await state.update_data(history=[])
+
+    question = message.text[1:].strip()
+    SEARCH_HEADER = "🔍 Поиск по дневнику  |  выход — !?\n\n"
+
+    if not question:
+        await message.answer(f"{SEARCH_HEADER}Задавай вопросы — отвечу на основе твоих записей.")
+        return
+
+    sent = await message.answer("Ищу в дневнике...")
+    async with async_session() as session:
+        await get_or_create_user(session, user_id=user_id, username=message.from_user.username, first_name=message.from_user.first_name)
+        embedding = get_embedding(question)
+        entries = await search_entries(session, user_id, embedding, limit=5)
+
+    answer = answer_from_diary(question, entries)
+    history = [
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": answer},
+    ]
+    await state.update_data(history=history)
+    await sent.edit_text(f"{SEARCH_HEADER}{answer}")
+
+
+@router.message(DiaryChat.active)
+async def diary_chat(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("В режиме дневника поддерживаю только текст. Для выхода — !?")
+        return
+
+    user_id = message.from_user.id
+    data = await state.get_data()
+    history = data.get("history", [])
+
+    sent = await message.answer("Ищу в дневнике...")
+    async with async_session() as session:
+        await get_or_create_user(session, user_id=user_id, username=message.from_user.username, first_name=message.from_user.first_name)
+        embedding = get_embedding(message.text)
+        entries = await search_entries(session, user_id, embedding, limit=5)
+
+    answer = answer_from_diary(message.text, entries, history)
+    history.append({"role": "user", "content": message.text})
+    history.append({"role": "assistant", "content": answer})
+    await state.update_data(history=history)
+    await sent.edit_text(answer)
+
+
+@router.message(F.text.startswith("="))
+async def ai_enter(message: Message, state: FSMContext):
+    await state.set_state(AIChat.active)
+    await state.update_data(history=[])
+
+    question = message.text[1:].strip()
+    if not question:
+        await message.answer("AI режим включён. Пиши — отвечу. Чтобы выйти — напиши !=")
+        return
+
+    sent = await message.answer("Думаю...")
+    history = [{"role": "user", "content": question}]
+    answer = answer_ai(history)
+    history.append({"role": "assistant", "content": answer})
+    await state.update_data(history=history)
+    await sent.edit_text(answer)
+
+
+@router.message(AIChat.active)
+async def ai_chat(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("В AI режиме поддерживаю только текст. Для выхода — !=")
+        return
+
+    data = await state.get_data()
+    history = data.get("history", [])
+    history.append({"role": "user", "content": message.text})
+
+    sent = await message.answer("Думаю...")
+    answer = answer_ai(history)
+    history.append({"role": "assistant", "content": answer})
+    await state.update_data(history=history)
+    await sent.edit_text(answer)
+
+
 @router.message()
 async def handle_message(message: Message):
     if not message.text:
@@ -196,22 +304,19 @@ async def handle_message(message: Message):
             first_name=message.from_user.first_name,
         )
 
-        if message.text.startswith("?"):
-            question = message.text[1:].strip()
-            await message.answer("Ищу в дневнике...")
+        embedding = get_embedding(message.text)
+        await save_entry(
+            session,
+            user_id=user_id,
+            type=EntryType.text,
+            text=message.text,
+            embedding=embedding,
+        )
+        await message.answer("Записал в дневник ✓")
 
-            embedding = get_embedding(question)
-            entries = await search_entries(session, user_id, embedding, limit=5)
-            answer = answer_from_diary(question, entries)
-            await message.answer(answer)
-
-        else:
-            embedding = get_embedding(message.text)
-            await save_entry(
-                session,
-                user_id=user_id,
-                type=EntryType.text,
-                text=message.text,
-                embedding=embedding,
-            )
-            await message.answer("Записал в дневник ✓")
+        similar = await find_similar_entries_not_today(session, user_id, embedding, limit=1) if len(message.text) > 30 else []
+        if similar:
+            old = similar[0]
+            date_str = old.created_at.strftime("%d.%m.%Y")
+            preview = old.text[:150] + ("..." if len(old.text) > 150 else "")
+            await message.answer(f"Кстати, {date_str} ты писал похожее:\n\n{preview}")
