@@ -172,16 +172,3 @@ async def update_checkin_settings(
     await session.commit()
 
 
-async def get_recent_entries(
-    session: AsyncSession,
-    user_id: int,
-    limit: int = 10,
-) -> list[Entry]:
-    """Получить последние записи пользователя"""
-    result = await session.execute(
-        select(Entry)
-        .where(Entry.user_id == user_id)
-        .order_by(Entry.created_at.desc())
-        .limit(limit)
-    )
-    return list(result.scalars().all())

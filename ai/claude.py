@@ -1,5 +1,9 @@
+import logging
 import os
-from groq import Groq
+
+from groq import Groq, APIError, APITimeoutError
+
+logger = logging.getLogger(__name__)
 
 from db.models import Entry
 
@@ -36,12 +40,15 @@ def answer_from_diary(question: str, entries: list[Entry], history: list[dict] |
 
     messages.append({"role": "user", "content": current_message})
 
-    response = _client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-    )
-
-    return response.choices[0].message.content
+    try:
+        response = _client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+        )
+        return response.choices[0].message.content
+    except (APIError, APITimeoutError) as e:
+        logger.error("Groq API error in answer_from_diary: %s", e)
+        return "Сервис временно недоступен, попробуй чуть позже."
 
 
 DIGEST_PROMPTS = {
@@ -75,11 +82,15 @@ def generate_digest(entries: list[Entry], fmt: str = "full", period: str = "не
         period=period, diary_text=diary_text
     )
 
-    response = _client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.choices[0].message.content
+    try:
+        response = _client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content
+    except (APIError, APITimeoutError) as e:
+        logger.error("Groq API error in generate_digest: %s", e)
+        return "Не удалось сгенерировать дайджест. Попробуй позже."
 
 
 def answer_ai(history: list[dict]) -> str:
@@ -89,9 +100,12 @@ def answer_ai(history: list[dict]) -> str:
     messages = [{"role": "system", "content": "Ты умный помощник. Отвечай кратко и по делу."}]
     messages.extend(history[-20:])  # не больше 20 последних сообщений
 
-    response = _client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-    )
-
-    return response.choices[0].message.content
+    try:
+        response = _client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+        )
+        return response.choices[0].message.content
+    except (APIError, APITimeoutError) as e:
+        logger.error("Groq API error in answer_ai: %s", e)
+        return "Сервис временно недоступен, попробуй чуть позже."

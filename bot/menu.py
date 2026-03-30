@@ -264,7 +264,7 @@ async def handle_checkin_time(message: Message, state: FSMContext):
     try:
         parts = message.text.strip().split()
         hour, minute = map(int, parts[0].split(":"))
-        utc_offset = int(parts[1].replace("+", ""))
+        utc_offset = int(parts[1])
         assert 0 <= hour <= 23 and 0 <= minute <= 59 and -12 <= utc_offset <= 14
     except Exception:
         await message.answer("Неверный формат. Пример: `21:00 +3`", parse_mode="Markdown")
@@ -356,7 +356,7 @@ async def handle_digest_time(message: Message, state: FSMContext):
     try:
         parts = message.text.strip().split()
         hour = int(parts[0].split(":")[0])
-        utc_offset = int(parts[1].replace("+", ""))
+        utc_offset = int(parts[1])
         assert 0 <= hour <= 23 and -12 <= utc_offset <= 14
     except Exception:
         await message.answer("Неверный формат. Пример: `20:00 +3`", parse_mode="Markdown")

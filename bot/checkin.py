@@ -98,7 +98,7 @@ async def cmd_checkin(message: Message):
         elif cmd == "time" and len(args) >= 3:
             try:
                 hour, minute = map(int, args[1].split(":"))
-                utc_offset = int(args[2].replace("+", ""))
+                utc_offset = int(args[2])
                 assert 0 <= hour <= 23 and 0 <= minute <= 59 and -12 <= utc_offset <= 14
                 await update_checkin_settings(
                     session, message.from_user.id,
@@ -180,7 +180,7 @@ async def cmd_digest(message: Message):
         elif cmd == "time" and len(args) >= 3:
             try:
                 hour = int(args[1].split(":")[0])
-                utc_offset = int(args[2].replace("+", ""))
+                utc_offset = int(args[2])
                 assert 0 <= hour <= 23 and -12 <= utc_offset <= 14
                 await update_digest_settings(
                     session, message.from_user.id, hour=hour, utc_offset=utc_offset

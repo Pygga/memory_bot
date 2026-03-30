@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(venv/bin/pip install:*)",
-      "Bash(/Users/dmitry/Desktop/memory_bot/.env.example:*)"
+      "Bash(/Users/dmitry/Desktop/memory_bot/.env.example:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

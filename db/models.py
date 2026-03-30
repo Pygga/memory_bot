@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 import enum
 
@@ -61,3 +61,8 @@ class Entry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user: Mapped["User"] = relationship(back_populates="entries")
+
+    __table_args__ = (
+        Index("ix_entries_user_id", "user_id"),
+        Index("ix_entries_user_created", "user_id", "created_at"),
+    )
