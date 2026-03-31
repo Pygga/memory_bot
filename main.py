@@ -23,6 +23,7 @@ async def main():
     await bot.set_my_commands([
         BotCommand(command="menu", description="Главное меню"),
         BotCommand(command="start", description="Начать"),
+        BotCommand(command="delete_my_data", description="Удалить все данные"),
     ])
     dp = Dispatcher(storage=storage)
 

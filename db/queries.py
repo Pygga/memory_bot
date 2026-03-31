@@ -180,6 +180,14 @@ async def update_language(session: AsyncSession, user_id: int, language: str) ->
     await session.commit()
 
 
+async def delete_user_data(session: AsyncSession, user_id: int) -> None:
+    """Удалить все записи и аккаунт пользователя"""
+    from sqlalchemy import delete
+    await session.execute(delete(Entry).where(Entry.user_id == user_id))
+    await session.execute(delete(User).where(User.id == user_id))
+    await session.commit()
+
+
 async def get_all_entries(session: AsyncSession, user_id: int) -> list[Entry]:
     """Все записи пользователя по дате"""
     result = await session.execute(

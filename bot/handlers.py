@@ -2,10 +2,10 @@ import os
 import tempfile
 
 from aiogram import Bot, F, Router
-from aiogram.filters import CommandStart, StateFilter
+from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, Voice
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, Voice
 import pytesseract
 from pdf2image import convert_from_path
 from PyPDF2 import PdfReader
@@ -17,7 +17,7 @@ from ai.vision import describe_image
 from bot.i18n import t
 from db import async_session
 from db.models import EntryType
-from db.queries import find_similar_entries_not_today, get_or_create_user, get_today_entry_count, save_entry, search_entries
+from db.queries import delete_user_data, find_similar_entries_not_today, get_or_create_user, get_today_entry_count, save_entry, search_entries
 
 IMAGE_MIMETYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
@@ -305,6 +305,32 @@ async def ai_chat(message: Message, state: FSMContext):
     history.append({"role": "assistant", "content": answer})
     await state.update_data(history=history)
     await sent.edit_text(answer)
+
+
+@router.message(Command("delete_my_data"))
+async def cmd_delete_my_data(message: Message):
+    lang = await _get_lang(message.from_user.id)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "delete_confirm_btn"), callback_data="delete:confirm")],
+        [InlineKeyboardButton(text=t(lang, "delete_cancel_btn"), callback_data="delete:cancel")],
+    ])
+    await message.answer(t(lang, "delete_confirm_prompt"), reply_markup=kb)
+
+
+@router.callback_query(F.data == "delete:confirm")
+async def cb_delete_confirm(call: CallbackQuery, state: FSMContext):
+    lang = await _get_lang(call.from_user.id)
+    await state.clear()
+    async with async_session() as session:
+        await delete_user_data(session, call.from_user.id)
+    await call.message.edit_text(t(lang, "delete_done"))
+    await call.answer()
+
+
+@router.callback_query(F.data == "delete:cancel")
+async def cb_delete_cancel(call: CallbackQuery):
+    await call.message.delete()
+    await call.answer()
 
 
 @router.message(StateFilter(None))

@@ -257,6 +257,24 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not detect timezone. Enter manually: `{example}`",
     },
 
+    # ── Delete data ───────────────────────────────────────────────────────────
+    "delete_confirm_prompt": {
+        "ru": "⚠️ Удалить все записи и аккаунт?\n\nЭто действие необратимо.",
+        "en": "⚠️ Delete all entries and your account?\n\nThis cannot be undone.",
+    },
+    "delete_confirm_btn": {
+        "ru": "🗑 Да, удалить всё",
+        "en": "🗑 Yes, delete everything",
+    },
+    "delete_cancel_btn": {
+        "ru": "← Отмена",
+        "en": "← Cancel",
+    },
+    "delete_done": {
+        "ru": "Все данные удалены. До свидания 👋",
+        "en": "All data deleted. Goodbye 👋",
+    },
+
     # ── Export ────────────────────────────────────────────────────────────────
     "export_btn": {
         "ru": "📤 Экспорт в PDF",
