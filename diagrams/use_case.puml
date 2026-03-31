@@ -1,0 +1,77 @@
+@startuml use_case
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #EEF4FF
+  BorderColor #4A90D9
+}
+
+actor "Пользователь" as User
+actor "Администратор" as Admin
+actor "Планировщик\n(APScheduler)" as Scheduler
+
+rectangle "Memory Bot" {
+  package "Запись в дневник" {
+    usecase "Записать текст" as UC_Text
+    usecase "Записать голосовое" as UC_Voice
+    usecase "Записать фото" as UC_Photo
+    usecase "Записать документ / PDF" as UC_Doc
+  }
+
+  package "Взаимодействие" {
+    usecase "Поиск по дневнику\n(RAG)" as UC_Search
+    usecase "Общение с ассистентом" as UC_AI
+    usecase "Просмотр чекина" as UC_Checkin
+    usecase "Получить дайджест" as UC_Digest
+  }
+
+  package "Настройки и аккаунт" {
+    usecase "Онбординг / регистрация" as UC_Start
+    usecase "Настройки чекина" as UC_SetCheckin
+    usecase "Настройки дайджеста" as UC_SetDigest
+    usecase "Сменить язык" as UC_Lang
+    usecase "Экспорт в PDF" as UC_Export
+    usecase "Удалить данные" as UC_Delete
+  }
+
+  package "Администрирование" {
+    usecase "Просмотр статистики" as UC_Stats
+    usecase "Список пользователей" as UC_Users
+    usecase "Кластеризация записей" as UC_Clusters
+  }
+
+  package "Автоматизация" {
+    usecase "Отправить вечерний чекин" as UC_AutoCheckin
+    usecase "Отправить дайджест" as UC_AutoDigest
+  }
+}
+
+User --> UC_Start
+User --> UC_Text
+User --> UC_Voice
+User --> UC_Photo
+User --> UC_Doc
+User --> UC_Search
+User --> UC_AI
+User --> UC_Checkin
+User --> UC_Digest
+User --> UC_SetCheckin
+User --> UC_SetDigest
+User --> UC_Lang
+User --> UC_Export
+User --> UC_Delete
+
+Admin --> UC_Stats
+Admin --> UC_Users
+Admin --> UC_Clusters
+
+Scheduler --> UC_AutoCheckin
+Scheduler --> UC_AutoDigest
+
+UC_Voice ..> UC_Text : <<include>>\nSTT (Whisper)
+UC_Photo ..> UC_Text : <<include>>\nVision (Claude)
+UC_Doc   ..> UC_Text : <<include>>\nOCR / PDF
+
+UC_Search ..> UC_AI : <<extend>>
+@enduml

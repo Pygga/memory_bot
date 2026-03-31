@@ -1,0 +1,55 @@
+@startuml deployment_diagram
+skinparam nodeBackgroundColor #EEF4FF
+skinparam nodeBorderColor #4A90D9
+skinparam artifactBackgroundColor #FFFBE6
+skinparam databaseBackgroundColor #E8F5E9
+skinparam arrowColor #555555
+
+node "Пользователь" as UserDevice {
+  artifact "Telegram Client\n(iOS / Android / Desktop)" as TGClient
+}
+
+node "Telegram Servers\nMTProto" as TGServer {
+  artifact "Bot API Gateway" as TGAPI
+}
+
+node "Railway Cloud" as Railway {
+  node "Python Container\n(Nixpacks, Python 3.11)" as PythonContainer {
+    artifact "main.py\naiogram Dispatcher" as MainApp
+    artifact "APScheduler\n(checkin / digest)" as Sched
+    artifact "fastembed\nBAAI/bge-small-en-v1.5" as FE
+  }
+
+  node "PostgreSQL\n(Railway Plugin)" as PGDB {
+    database "memory_bot DB\n+ pgvector extension" as PGData
+  }
+}
+
+node "Groq Cloud\napi.groq.com" as GroqCloud {
+  artifact "LLaMA 3.3 70B\n(text generation)" as LLaMA
+  artifact "Whisper large-v3\n(speech-to-text)" as Whisper
+}
+
+node "Anthropic Cloud\napi.anthropic.com" as AnthropicCloud {
+  artifact "Claude claude-sonnet-4-6\n(image description)" as ClaudeVision
+}
+
+TGClient --> TGServer : HTTPS / MTProto
+TGServer --> MainApp : Long Polling\n(getUpdates)
+MainApp --> TGServer : sendMessage\nsendDocument
+
+MainApp --> PGData : SQLAlchemy\nasyncpg
+FE --> PGData : сохраняет\nVector(384)
+
+MainApp --> GroqCloud : HTTPS REST
+MainApp --> AnthropicCloud : HTTPS REST
+
+Sched --> MainApp : задачи\n(каждую минуту/час)
+
+note right of Railway
+  Авто-деплой из GitHub main
+  nixpacks.toml: tesseract, dejavu-fonts
+  Переменные: BOT_TOKEN, GROQ_API_KEY,
+  DATABASE_URL, ADMIN_ID, INVITE_CODE
+end note
+@enduml

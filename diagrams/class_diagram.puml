@@ -1,0 +1,93 @@
+@startuml class_diagram
+skinparam classBackgroundColor #EEF4FF
+skinparam classBorderColor #4A90D9
+skinparam arrowColor #555555
+
+enum EntryType {
+  text
+  audio
+  photo
+  video
+}
+
+class User {
+  +id: BigInteger <<PK>>
+  +username: String
+  +first_name: String
+  +language: String
+  +created_at: DateTime
+  --
+  +checkin_enabled: Boolean
+  +checkin_hour: Integer
+  +checkin_minute: Integer
+  +checkin_utc_offset: Integer
+  --
+  +digest_enabled: Boolean
+  +digest_period: String
+  +digest_format: String
+  +digest_hour: Integer
+  +digest_utc_offset: Integer
+  +digest_day: Integer
+}
+
+class Entry {
+  +id: Integer <<PK>>
+  +user_id: BigInteger <<FK>>
+  +type: EntryType
+  +text: Text
+  +summary: Text
+  +file_url: String
+  +embedding: Vector(384)
+  +created_at: DateTime
+}
+
+class KMeansClusterer {
+  +n_clusters: int
+  +random_state: int
+  --
+  +cluster_entries(entries): labels[]
+  +select_k_by_silhouette(): int
+}
+
+class PCAReducer {
+  +n_components: int = 2
+  --
+  +reduce_to_2d(entries): ndarray
+}
+
+class RAGSearcher {
+  --
+  +embed(text): Vector(384)
+  +cosine_search(query, k): Entry[]
+  +answer_from_diary(question, entries): str
+}
+
+class DigestGenerator {
+  --
+  +generate_digest(entries, fmt, period): str
+}
+
+class Transcriber {
+  --
+  +transcribe_audio(path): str
+}
+
+class VisionDescriber {
+  --
+  +describe_image(path): str
+}
+
+User "1" o-- "many" Entry : имеет >
+Entry --> EntryType : тип
+
+RAGSearcher ..> Entry : использует
+KMeansClusterer ..> Entry : кластеризует
+PCAReducer ..> Entry : визуализирует
+DigestGenerator ..> Entry : анализирует
+
+note right of Entry::embedding
+  pgvector Vector(384)
+  BAAI/bge-small-en-v1.5
+  cosine distance index
+end note
+@enduml

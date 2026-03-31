@@ -1,0 +1,73 @@
+@startuml component_diagram
+skinparam componentBackgroundColor #EEF4FF
+skinparam componentBorderColor #4A90D9
+skinparam packageBackgroundColor #FAFAFA
+skinparam arrowColor #555555
+
+package "bot/" {
+  [menu_router] as Menu
+  [checkin_router] as Checkin
+  [admin_router] as Admin
+  [router (handlers)] as Handlers
+  [i18n] as I18n
+  [export (PDF)] as Export
+}
+
+package "ai/" {
+  [embeddings\n(fastembed)] as Embed
+  [claude\n(LLM, Digest)] as LLM
+  [transcriber\n(Whisper STT)] as STT
+  [vision\n(Claude Vision)] as Vision
+  [clustering\n(KMeans + PCA)] as Cluster
+}
+
+package "db/" {
+  [models\n(SQLAlchemy ORM)] as Models
+  [queries] as Queries
+  database "PostgreSQL\n+ pgvector" as PG
+}
+
+package "Внешние API" {
+  [Groq API\n(LLaMA + Whisper)] as Groq
+  [Anthropic API\n(Claude Vision)] as Anthropic
+  [Telegram API] as TG
+}
+
+[APScheduler] as Scheduler
+[Dispatcher\n(aiogram)] as DP
+
+TG --> DP : webhook/polling
+DP --> Menu
+DP --> Checkin
+DP --> Admin
+DP --> Handlers
+
+Menu --> I18n
+Handlers --> I18n
+Checkin --> I18n
+
+Handlers --> Embed
+Handlers --> LLM
+Handlers --> STT
+Handlers --> Vision
+Handlers --> Queries
+
+Menu --> Queries
+Menu --> LLM
+Menu --> Export
+Admin --> Queries
+Admin --> Cluster
+
+Cluster --> Embed
+
+LLM --> Groq
+STT --> Groq
+Vision --> Anthropic
+
+Queries --> Models
+Models --> PG
+Embed --> PG : сохраняет векторы
+
+Scheduler --> Checkin : каждую минуту
+Scheduler --> LLM : каждый час
+@enduml
