@@ -279,7 +279,13 @@ async def cb_export(call: CallbackQuery):
         return
 
     sent = await call.message.answer(t(lang, "export_generating"))
-    pdf_path = generate_diary_pdf(entries, owner_name=user.first_name or "", lang=lang)
+    try:
+        pdf_path = generate_diary_pdf(entries, owner_name=user.first_name or "", lang=lang)
+    except Exception as e:
+        logger.error("PDF export failed: %s", e)
+        await sent.edit_text("❌ Не удалось создать PDF. Попробуй позже.")
+        return
+
     try:
         with open(pdf_path, "rb") as f:
             await call.message.answer_document(

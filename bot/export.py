@@ -1,3 +1,4 @@
+import os
 import tempfile
 from datetime import timezone
 
@@ -12,19 +13,40 @@ _TYPE_ICON = {
     EntryType.video: "[video] ",
 }
 
+_FONT_SEARCH_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",       # Ubuntu/Debian (apt)
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",                 # some Linux distros
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",                    # Arch
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",   # macOS fallback
+]
+
+_FONT_BOLD_SEARCH_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+]
+
+
+def _find_font(paths: list[str]) -> str | None:
+    return next((p for p in paths if os.path.exists(p)), None)
+
 
 def generate_diary_pdf(entries: list[Entry], owner_name: str, lang: str = "ru") -> str:
     """Генерирует PDF со всеми записями, возвращает путь к временному файлу"""
     title = "Мой дневник" if lang == "ru" else "My Diary"
     no_entries = "Записей пока нет." if lang == "ru" else "No entries yet."
 
+    font_regular = _find_font(_FONT_SEARCH_PATHS)
+    font_bold = _find_font(_FONT_BOLD_SEARCH_PATHS)
+    if not font_regular or not font_bold:
+        raise RuntimeError(f"DejaVu font not found. Searched: {_FONT_SEARCH_PATHS}")
+
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # fpdf2 includes DejaVu which covers Cyrillic
-    pdf.add_font("DejaVu", style="", fname="DejaVuSansCondensed.ttf")
-    pdf.add_font("DejaVu", style="B", fname="DejaVuSansCondensed-Bold.ttf")
+    pdf.add_font("DejaVu", style="", fname=font_regular)
+    pdf.add_font("DejaVu", style="B", fname=font_bold)
 
     # Title
     pdf.set_font("DejaVu", style="B", size=18)
