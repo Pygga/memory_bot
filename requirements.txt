@@ -12,3 +12,5 @@ pytesseract==0.3.13
 APScheduler==3.10.4
 timezonefinder==6.5.2
 fpdf2==2.8.2
+scikit-learn==1.6.1
+matplotlib==3.10.1

@@ -188,6 +188,18 @@ async def delete_user_data(session: AsyncSession, user_id: int) -> None:
     await session.commit()
 
 
+async def get_entries_with_embeddings(session: AsyncSession, user_id: int) -> list[Entry]:
+    """Все записи пользователя с эмбеддингами (для кластеризации)"""
+    result = await session.execute(
+        select(Entry)
+        .where(Entry.user_id == user_id)
+        .where(Entry.embedding.isnot(None))
+        .where(Entry.text.isnot(None))
+        .order_by(Entry.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def get_all_entries(session: AsyncSession, user_id: int) -> list[Entry]:
     """Все записи пользователя по дате"""
     result = await session.execute(
