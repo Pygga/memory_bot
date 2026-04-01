@@ -45,11 +45,14 @@ async def cmd_admin(message: Message):
                 await message.answer("Недостаточно записей для кластеризации (нужно минимум 4).")
                 return
             from ai.clustering import cluster_entries, get_cluster_samples
+            from ai.claude import name_clusters
             labels, n_clusters = cluster_entries(entries)
             samples = get_cluster_samples(entries, labels, n_clusters)
+            cluster_names = name_clusters(samples)
             lines = []
             for cluster_id, cluster_entries_ in samples.items():
-                lines.append(f"*Тема {cluster_id + 1}* ({labels.count(cluster_id)} записей):")
+                name = cluster_names.get(cluster_id, f"Тема {cluster_id + 1}")
+                lines.append(f"*{name}* ({labels.count(cluster_id)} записей):")
                 for e in cluster_entries_:
                     preview = (e.text or "")[:80].replace("\n", " ")
                     lines.append(f"  • {e.created_at.strftime('%d.%m')} {preview}…")

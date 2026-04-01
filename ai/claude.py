@@ -131,6 +131,33 @@ def generate_digest(entries: list[Entry], fmt: str = "full", period: str = "не
         return "Не удалось сгенерировать дайджест. Попробуй позже."
 
 
+def name_clusters(samples: dict[int, list[Entry]]) -> dict[int, str]:
+    """Придумать короткое название каждому кластеру по примерам записей."""
+    names = {}
+    for cluster_id, entries in samples.items():
+        previews = "\n".join(f"• {(e.text or '')[:120]}" for e in entries)
+        try:
+            response = _client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Ты анализируешь записи личного дневника. Отвечай только названием темы — 2-4 слова, без точки, без кавычек.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Дай короткое название теме по этим записям:\n{previews}",
+                    },
+                ],
+                max_tokens=20,
+            )
+            names[cluster_id] = response.choices[0].message.content.strip()
+        except (APIError, APITimeoutError) as e:
+            logger.error("Groq API error in name_clusters: %s", e)
+            names[cluster_id] = f"Тема {cluster_id + 1}"
+    return names
+
+
 def answer_ai(history: list[dict]) -> str:
     """Ответить как чистый AI-ассистент без контекста дневника."""
     messages = [
