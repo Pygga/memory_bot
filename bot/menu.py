@@ -260,12 +260,13 @@ async def cb_settings(call: CallbackQuery):
 
 
 @menu_router.callback_query(F.data == "menu:export")
-async def cb_export(call: CallbackQuery):
+async def cb_export(call: CallbackQuery, bot):
     import os
     from bot.export import generate_diary_pdf
     from aiogram.types import BufferedInputFile
 
     lang = await _get_lang(call.from_user.id)
+    await bot.send_chat_action(call.message.chat.id, "upload_document")
     await call.answer(t(lang, "export_generating"))
 
     async with async_session() as session:
@@ -357,23 +358,43 @@ async def cb_checkin_write(call: CallbackQuery, state: FSMContext):
     await call.answer()
 
 
-@menu_router.message(MenuState.checkin_manual)
-async def handle_checkin_manual(message: Message, state: FSMContext):
-    if not message.text:
-        return
+async def _save_checkin_entry(message: Message, state: FSMContext, text: str):
     from ai.embeddings import get_embedding
     from db.models import EntryType
     from db.queries import save_entry
     lang = await _get_lang(message.from_user.id)
-    text = f"[Чекин] {message.text}"
-    embedding = get_embedding(text)
+    full_text = f"[Чекин] {text}"
+    embedding = get_embedding(full_text)
     async with async_session() as session:
-        await get_or_create_user(
-            session, message.from_user.id, message.from_user.username, message.from_user.first_name
-        )
-        await save_entry(session, user_id=message.from_user.id, type=EntryType.text, text=text, embedding=embedding)
+        await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
+        await save_entry(session, user_id=message.from_user.id, type=EntryType.text, text=full_text, embedding=embedding)
     await state.clear()
     await message.answer(t(lang, "checkin_saved"))
+
+
+@menu_router.message(MenuState.checkin_manual, F.voice)
+async def handle_checkin_manual_voice(message: Message, state: FSMContext, bot):
+    import os, tempfile
+    from ai.transcriber import transcribe_audio
+    await bot.send_chat_action(message.chat.id, "record_voice")
+    file = await bot.get_file(message.voice.file_id)
+    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+        tmp_path = tmp.name
+    await bot.download_file(file.file_path, destination=tmp_path)
+    try:
+        transcript = transcribe_audio(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+    if not transcript:
+        lang = await _get_lang(message.from_user.id)
+        await message.answer(t(lang, "speech_failed"))
+        return
+    await _save_checkin_entry(message, state, transcript)
+
+
+@menu_router.message(MenuState.checkin_manual, F.text)
+async def handle_checkin_manual(message: Message, state: FSMContext):
+    await _save_checkin_entry(message, state, message.text)
 
 
 @menu_router.callback_query(F.data == "menu:checkin:settings")
@@ -599,8 +620,9 @@ async def handle_digest_location(message: Message, state: FSMContext):
 
 
 @menu_router.callback_query(F.data == "menu:digest:now")
-async def cb_digest_now(call: CallbackQuery):
+async def cb_digest_now(call: CallbackQuery, bot):
     lang = await _get_lang(call.from_user.id)
+    await bot.send_chat_action(call.message.chat.id, "typing")
     await call.answer(t(lang, "digest_generating"))
     async with async_session() as session:
         user = await get_or_create_user(

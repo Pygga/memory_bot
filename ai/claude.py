@@ -32,16 +32,26 @@ def _strip_formatting(text: str) -> str:
     return text
 
 
+_TYPE_LABELS = {
+    "audio": "голосовое",
+    "photo": "фото",
+    "text": "текст",
+    "video": "видео",
+}
+
+
+def _format_entry(e: Entry) -> str:
+    type_label = _TYPE_LABELS.get(e.type.value if hasattr(e.type, "value") else str(e.type), "текст")
+    ts = e.created_at.strftime("%d.%m.%Y %H:%M")
+    return f"[{ts}, {type_label}] {e.text}"
+
+
 def answer_from_diary(question: str, entries: list[Entry], history: list[dict] | None = None) -> str:
     """Ответить на вопрос на основе записей дневника."""
     if not entries:
         current_message = f"Вопрос: {question}"
     else:
-        diary_text = "\n\n".join(
-            f"[{e.created_at.strftime('%d.%m.%Y')}] {e.text}"
-            for e in entries
-            if e.text
-        )
+        diary_text = "\n\n".join(_format_entry(e) for e in entries if e.text)
         current_message = f"Релевантные записи из дневника:\n{diary_text}\n\nВопрос: {question}"
 
     messages = [
@@ -101,11 +111,7 @@ def generate_digest(entries: list[Entry], fmt: str = "full", period: str = "не
     if not entries:
         return "За этот период записей не найдено."
 
-    diary_text = "\n\n".join(
-        f"[{e.created_at.strftime('%d.%m.%Y')}] {e.text}"
-        for e in entries
-        if e.text
-    )
+    diary_text = "\n\n".join(_format_entry(e) for e in entries if e.text)
 
     prompt = DIGEST_PROMPTS.get(fmt, DIGEST_PROMPTS["full"]).format(
         period=period, diary_text=diary_text

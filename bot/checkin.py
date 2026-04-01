@@ -1,7 +1,10 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from aiogram import Router
+import os
+import tempfile
+
+from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -10,6 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from ai.claude import generate_digest
 from ai.embeddings import get_embedding
+from ai.transcriber import transcribe_audio
 from bot.i18n import t
 from db import async_session
 from db.models import EntryType
@@ -34,29 +38,43 @@ class CheckinPending(StatesGroup):
     waiting = State()
 
 
-@checkin_router.message(CheckinPending.waiting)
-async def handle_checkin_response(message: Message, state: FSMContext):
-    if not message.text:
+async def _save_checkin(session, user_id, username, first_name, text) -> str:
+    user = await get_or_create_user(session, user_id=user_id, username=username, first_name=first_name)
+    lang = user.language or "ru"
+    full_text = f"[Чекин] {text}"
+    embedding = get_embedding(full_text)
+    await save_entry(session, user_id=user_id, type=EntryType.text, text=full_text, embedding=embedding)
+    return lang
+
+
+@checkin_router.message(CheckinPending.waiting, F.voice)
+async def handle_checkin_voice(message: Message, state: FSMContext, bot: Bot):
+    await bot.send_chat_action(message.chat.id, "record_voice")
+    file = await bot.get_file(message.voice.file_id)
+    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+        tmp_path = tmp.name
+    await bot.download_file(file.file_path, destination=tmp_path)
+    try:
+        transcript = transcribe_audio(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    if not transcript:
+        async with async_session() as session:
+            user = await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
+        await message.answer(t(user.language or "ru", "speech_failed"))
         return
 
-    text = f"[Чекин] {message.text}"
-    embedding = get_embedding(text)
     async with async_session() as session:
-        user = await get_or_create_user(
-            session,
-            user_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-        )
-        lang = user.language or "ru"
-        await save_entry(
-            session,
-            user_id=message.from_user.id,
-            type=EntryType.text,
-            text=text,
-            embedding=embedding,
-        )
+        lang = await _save_checkin(session, message.from_user.id, message.from_user.username, message.from_user.first_name, transcript)
+    await state.clear()
+    await message.answer(t(lang, "checkin_saved"))
 
+
+@checkin_router.message(CheckinPending.waiting, F.text)
+async def handle_checkin_response(message: Message, state: FSMContext):
+    async with async_session() as session:
+        lang = await _save_checkin(session, message.from_user.id, message.from_user.username, message.from_user.first_name, message.text)
     await state.clear()
     await message.answer(t(lang, "checkin_saved"))
 

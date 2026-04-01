@@ -17,7 +17,7 @@ from ai.vision import describe_image
 from bot.i18n import t
 from db import async_session
 from db.models import EntryType
-from db.queries import delete_user_data, find_similar_entries_not_today, get_or_create_user, get_today_entry_count, save_entry, search_entries
+from db.queries import delete_user_data, find_similar_entries_not_today, get_or_create_user, get_recent_entries, get_today_entry_count, save_entry, search_entries
 
 IMAGE_MIMETYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
@@ -119,6 +119,7 @@ async def handle_voice(message: Message, bot: Bot):
         await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
         if await _is_rate_limited(session, message.from_user.id, lang, message):
             return
+    await bot.send_chat_action(message.chat.id, "record_voice")
     await message.answer(t(lang, "listening"))
 
     voice: Voice = message.voice
@@ -164,6 +165,7 @@ async def handle_photo(message: Message, bot: Bot):
         await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
         if await _is_rate_limited(session, message.from_user.id, lang, message):
             return
+    await bot.send_chat_action(message.chat.id, "typing")
     await message.answer(t(lang, "looking_photo"))
 
     photo = message.photo[-1]
@@ -215,6 +217,7 @@ async def handle_document(message: Message, bot: Bot):
         await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
         if await _is_rate_limited(session, message.from_user.id, lang, message):
             return
+    await bot.send_chat_action(message.chat.id, "upload_document")
     await message.answer(t(lang, "reading_file"))
 
     ext = ".pdf" if mime == "application/pdf" else ".jpg"
@@ -268,7 +271,7 @@ async def handle_document(message: Message, bot: Bot):
 
 
 @router.message(DiaryChat.active)
-async def diary_chat(message: Message, state: FSMContext):
+async def diary_chat(message: Message, state: FSMContext, bot: Bot):
     if not message.text:
         return
 
@@ -277,11 +280,22 @@ async def diary_chat(message: Message, state: FSMContext):
     data = await state.get_data()
     history = data.get("history", [])
 
+    await bot.send_chat_action(message.chat.id, "typing")
     sent = await message.answer(t(lang, "searching_diary"))
     async with async_session() as session:
         await get_or_create_user(session, user_id=user_id, username=message.from_user.username, first_name=message.from_user.first_name)
         embedding = get_embedding(message.text)
-        entries = await search_entries(session, user_id, embedding, limit=5)
+        semantic = await search_entries(session, user_id, embedding, limit=5)
+        recent = await get_recent_entries(session, user_id, limit=3)
+
+    # Merge: recent + semantic, deduplicated, sorted by date
+    seen: set[int] = set()
+    merged: list = []
+    for e in recent + semantic:
+        if e.id not in seen:
+            seen.add(e.id)
+            merged.append(e)
+    entries = sorted(merged, key=lambda e: e.created_at)
 
     answer = answer_from_diary(message.text, entries, history)
     history.append({"role": "user", "content": message.text})
@@ -291,7 +305,7 @@ async def diary_chat(message: Message, state: FSMContext):
 
 
 @router.message(AIChat.active)
-async def ai_chat(message: Message, state: FSMContext):
+async def ai_chat(message: Message, state: FSMContext, bot: Bot):
     if not message.text:
         return
 
@@ -300,6 +314,7 @@ async def ai_chat(message: Message, state: FSMContext):
     history = data.get("history", [])
     history.append({"role": "user", "content": message.text})
 
+    await bot.send_chat_action(message.chat.id, "typing")
     sent = await message.answer(t(lang, "thinking"))
     answer = answer_ai(history)
     history.append({"role": "assistant", "content": answer})

@@ -255,6 +255,22 @@ async def get_recent_users(session: AsyncSession, limit: int = 10) -> list[User]
     return list(result.scalars().all())
 
 
+async def get_recent_entries(
+    session: AsyncSession,
+    user_id: int,
+    limit: int = 3,
+) -> list[Entry]:
+    """Последние N записей пользователя по дате"""
+    result = await session.execute(
+        select(Entry)
+        .where(Entry.user_id == user_id)
+        .where(Entry.text.isnot(None))
+        .order_by(Entry.created_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def get_recent_checkins(
     session: AsyncSession,
     user_id: int,
