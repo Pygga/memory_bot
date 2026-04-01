@@ -141,19 +141,7 @@ async def handle_voice(message: Message, bot: Bot):
 
     embedding = get_embedding(transcript)
     async with async_session() as session:
-        await get_or_create_user(
-            session,
-            user_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-        )
-        await save_entry(
-            session,
-            user_id=message.from_user.id,
-            type=EntryType.audio,
-            text=transcript,
-            embedding=embedding,
-        )
+        await save_entry(session, user_id=message.from_user.id, type=EntryType.audio, text=transcript, embedding=embedding)
 
     await message.answer(t(lang, "saved_audio", transcript=transcript), parse_mode="Markdown")
 
@@ -186,19 +174,7 @@ async def handle_photo(message: Message, bot: Bot):
 
     embedding = get_embedding(description)
     async with async_session() as session:
-        await get_or_create_user(
-            session,
-            user_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-        )
-        await save_entry(
-            session,
-            user_id=message.from_user.id,
-            type=EntryType.photo,
-            text=description,
-            embedding=embedding,
-        )
+        await save_entry(session, user_id=message.from_user.id, type=EntryType.photo, text=description, embedding=embedding)
 
     await message.answer(t(lang, "saved_photo", description=description))
 
@@ -252,19 +228,7 @@ async def handle_document(message: Message, bot: Bot):
 
     embedding = get_embedding(text)
     async with async_session() as session:
-        await get_or_create_user(
-            session,
-            user_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-        )
-        await save_entry(
-            session,
-            user_id=message.from_user.id,
-            type=entry_type,
-            text=text,
-            embedding=embedding,
-        )
+        await save_entry(session, user_id=message.from_user.id, type=entry_type, text=text, embedding=embedding)
 
     icon = "📄" if mime == "application/pdf" else "📷"
     await message.answer(t(lang, "saved_file", icon=icon, text=text))

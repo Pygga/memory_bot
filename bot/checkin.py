@@ -62,7 +62,8 @@ async def handle_checkin_voice(message: Message, state: FSMContext, bot: Bot):
     if not transcript:
         async with async_session() as session:
             user = await get_or_create_user(session, message.from_user.id, message.from_user.username, message.from_user.first_name)
-        await message.answer(t(user.language or "ru", "speech_failed"))
+            lang = user.language or "ru"
+        await message.answer(t(lang, "speech_failed"))
         return
 
     async with async_session() as session:

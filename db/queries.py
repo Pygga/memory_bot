@@ -91,7 +91,7 @@ async def find_similar_entries_not_today(
 async def get_digest_users(session: AsyncSession) -> list[User]:
     """Получить всех пользователей с включённым дайджестом"""
     result = await session.execute(
-        select(User).where(User.digest_enabled == True)
+        select(User).where(User.digest_enabled)
     )
     return list(result.scalars().all())
 
@@ -144,7 +144,7 @@ async def get_entries_for_period(
 async def get_checkin_users(session: AsyncSession) -> list[User]:
     """Получить всех пользователей с включённым чекином"""
     result = await session.execute(
-        select(User).where(User.checkin_enabled == True)
+        select(User).where(User.checkin_enabled)
     )
     return list(result.scalars().all())
 

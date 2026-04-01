@@ -16,13 +16,16 @@ from aiogram.types import (
 )
 
 from ai.claude import generate_digest
+from ai.embeddings import get_embedding
 from bot.i18n import t
 from db import async_session
+from db.models import EntryType
 from db.queries import (
     get_all_entries,
     get_entries_for_period,
     get_or_create_user,
     get_recent_checkins,
+    save_entry,
     update_checkin_settings,
     update_digest_settings,
     update_language,
@@ -307,6 +310,7 @@ async def cb_lang(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t(new_lang, "checkin_title"), callback_data="menu:checkin:settings")],
         [InlineKeyboardButton(text=t(new_lang, "digest_title"), callback_data="menu:digest")],
+        [InlineKeyboardButton(text=t(new_lang, "export_btn"), callback_data="menu:export")],
         [InlineKeyboardButton(text=lang_label, callback_data=f"menu:lang:{next_lang}")],
         [InlineKeyboardButton(text=t(new_lang, "back"), callback_data="menu:main")],
     ])
@@ -359,9 +363,6 @@ async def cb_checkin_write(call: CallbackQuery, state: FSMContext):
 
 
 async def _save_checkin_entry(message: Message, state: FSMContext, text: str):
-    from ai.embeddings import get_embedding
-    from db.models import EntryType
-    from db.queries import save_entry
     lang = await _get_lang(message.from_user.id)
     full_text = f"[Чекин] {text}"
     embedding = get_embedding(full_text)
@@ -374,7 +375,8 @@ async def _save_checkin_entry(message: Message, state: FSMContext, text: str):
 
 @menu_router.message(MenuState.checkin_manual, F.voice)
 async def handle_checkin_manual_voice(message: Message, state: FSMContext, bot):
-    import os, tempfile
+    import os
+    import tempfile
     from ai.transcriber import transcribe_audio
     await bot.send_chat_action(message.chat.id, "record_voice")
     file = await bot.get_file(message.voice.file_id)
