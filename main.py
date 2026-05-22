@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 from bot.admin import admin_router
+from bot.book_handler import book_router
 from bot.checkin import checkin_router, start_scheduler
 from bot.handlers import router
 from bot.menu import menu_router
@@ -23,6 +24,9 @@ async def main():
     await bot.set_my_commands([
         BotCommand(command="menu", description="Главное меню"),
         BotCommand(command="start", description="Начать"),
+        BotCommand(command="book", description="Книга за месяц"),
+        BotCommand(command="book_all", description="Полная книга"),
+        BotCommand(command="help", description="Справка"),
         BotCommand(command="delete_my_data", description="Удалить все данные"),
     ])
     dp = Dispatcher(storage=storage)
@@ -31,6 +35,7 @@ async def main():
     dp.include_router(menu_router)     # FSM: MenuState (время чекина/дайджеста)
     dp.include_router(checkin_router)  # FSM: CheckinPending
     dp.include_router(router)
+    dp.include_router(book_router)     # Book generation commands
 
     scheduler = start_scheduler(bot, storage)
 

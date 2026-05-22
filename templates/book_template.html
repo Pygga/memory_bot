@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @page {
+            size: A5;
+            margin: 2cm;
+            
+            @bottom-center {
+                content: counter(page);
+                font-size: 10pt;
+                color: #666;
+            }
+        }
+        
+        @page cover {
+            margin: 0;
+        }
+        
+        body {
+            font-family: "DejaVu Serif", "Georgia", serif;
+            line-height: 1.6;
+            color: #2c2c2c;
+            font-size: 11pt;
+        }
+        
+        /* Обложка */
+        .cover-page {
+            page: cover;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 4cm 2cm;
+        }
+        
+        .cover-title {
+            font-size: 36pt;
+            font-weight: bold;
+            color: #1a1a2e;
+            margin-bottom: 1cm;
+            font-family: "DejaVu Serif", serif;
+        }
+        
+        .cover-subtitle {
+            font-size: 16pt;
+            color: #4a4a6a;
+            margin-bottom: 2cm;
+            font-style: italic;
+        }
+        
+        .cover-author {
+            font-size: 14pt;
+            color: #666;
+            margin-top: auto;
+        }
+        
+        .cover-date {
+            font-size: 12pt;
+            color: #888;
+            margin-top: 0.5cm;
+        }
+        
+        /* Оглавление */
+        .toc-page {
+            page-break-before: always;
+        }
+        
+        .toc-title {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #1a1a2e;
+            text-align: center;
+            margin-bottom: 1cm;
+            page-break-after: avoid;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .toc-item {
+            margin-bottom: 0.5cm;
+            page-break-inside: avoid;
+        }
+        
+        .toc-link {
+            text-decoration: none;
+            color: #2c2c2c;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dotted #ccc;
+            padding-bottom: 2pt;
+        }
+        
+        .toc-chapter {
+            font-weight: bold;
+        }
+        
+        .toc-page-num {
+            color: #666;
+        }
+        
+        /* Главы */
+        .chapter-page {
+            page-break-before: always;
+        }
+        
+        .chapter-header {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #1a1a2e;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0.5cm;
+            margin-bottom: 1cm;
+            page-break-after: avoid;
+        }
+        
+        .chapter-date {
+            font-size: 10pt;
+            color: #888;
+            font-style: italic;
+            margin-bottom: 0.5cm;
+        }
+        
+        /* Записи */
+        .entry {
+            margin-bottom: 1.5cm;
+            page-break-inside: avoid;
+        }
+        
+        .entry-meta {
+            font-size: 9pt;
+            color: #666;
+            margin-bottom: 0.3cm;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .entry-time {
+            font-weight: bold;
+        }
+        
+        .entry-type {
+            background: #f0f0f0;
+            padding: 2pt 6pt;
+            border-radius: 3px;
+            font-size: 8pt;
+        }
+        
+        .entry-text {
+            text-align: justify;
+            hyphens: auto;
+        }
+        
+        .entry-photo {
+            text-align: center;
+            margin: 0.5cm 0;
+        }
+        
+        .entry-photo img {
+            max-width: 100%;
+            max-height: 8cm;
+            border: 1px solid #ddd;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .tags {
+            margin-top: 0.3cm;
+            font-size: 9pt;
+        }
+        
+        .tag {
+            background: #e8f4f8;
+            color: #006699;
+            padding: 2pt 6pt;
+            border-radius: 3px;
+            margin-right: 5pt;
+        }
+        
+        /* Разделитель */
+        .divider {
+            border: none;
+            border-top: 1px solid #e0e0e0;
+            margin: 1cm 0;
+        }
+        
+        /* Пустое состояние */
+        .empty-message {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+            padding: 2cm;
+        }
+        
+        /* Декоративные элементы */
+        .ornament {
+            text-align: center;
+            font-size: 20pt;
+            color: #ccc;
+            margin: 0.5cm 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Обложка -->
+    <div class="cover-page">
+        <div class="cover-title">{{ book_title }}</div>
+        <div class="cover-subtitle">{{ subtitle }}</div>
+        <div class="cover-author">{{ author_name }}</div>
+        <div class="cover-date">{{ date_range }}</div>
+    </div>
+    
+    <!-- Оглавление -->
+    <div class="toc-page">
+        <div class="toc-title">{{ toc_title }}</div>
+        <ul class="toc-list">
+            {% for chapter in chapters %}
+            <li class="toc-item">
+                <span class="toc-link">
+                    <span class="toc-chapter">{{ chapter.title }}</span>
+                    <span class="toc-page-num">{{ chapter.page }}</span>
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    
+    <!-- Главы с записями -->
+    {% for chapter in chapters %}
+    <div class="chapter-page">
+        <div class="chapter-header">{{ chapter.title }}</div>
+        <div class="chapter-date">{{ chapter.date_range }}</div>
+        
+        {% if chapter.entries %}
+            {% for entry in chapter.entries %}
+            <div class="entry">
+                <div class="entry-meta">
+                    <span class="entry-time">{{ entry.time }}</span>
+                    <span class="entry-type">{{ entry.type_icon }}</span>
+                </div>
+                
+                {% if entry.photo_url %}
+                <div class="entry-photo">
+                    <img src="{{ entry.photo_url }}" alt="Memory photo">
+                </div>
+                {% endif %}
+                
+                <div class="entry-text">{{ entry.text }}</div>
+                
+                {% if entry.tags %}
+                <div class="tags">
+                    {% for tag in entry.tags %}
+                    <span class="tag">#{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if not loop.last %}
+            <hr class="divider">
+            {% endif %}
+            {% endfor %}
+        {% else %}
+            <div class="empty-message">{{ no_entries_text }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    
+    <!-- Последняя страница -->
+    <div style="page-break-before: always; text-align: center; padding-top: 40%;">
+        <div class="ornament">❧</div>
+        <div style="color: #888; font-size: 10pt;">{{ endnote }}</div>
+        <div style="color: #aaa; font-size: 9pt; margin-top: 1cm;">{{ generated_at }}</div>
+    </div>
+</body>
+</html>
