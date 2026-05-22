@@ -29,8 +29,14 @@ async def save_entry(
     summary: str | None = None,
     file_url: str | None = None,
     embedding: list[float] | None = None,
+    tags: list[str] | None = None,
 ) -> Entry:
     """Сохранить новую запись в дневник"""
+    # Извлекаем теги из текста если не переданы явно
+    if tags is None and text:
+        import re
+        tags = list(set(re.findall(r'#(\w+)', text)))
+    
     entry = Entry(
         user_id=user_id,
         type=type,
@@ -43,6 +49,23 @@ async def save_entry(
     await session.commit()
     await session.refresh(entry)
     return entry
+
+
+async def get_entries_for_book(
+    session: AsyncSession,
+    user_id: int,
+    days: int = 30,
+) -> list[Entry]:
+    """Получить записи для книги за последние N дней"""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    result = await session.execute(
+        select(Entry)
+        .where(Entry.user_id == user_id)
+        .where(Entry.created_at >= since)
+        .where(Entry.text.isnot(None))
+        .order_by(Entry.created_at.asc())
+    )
+    return list(result.scalars().all())
 
 
 async def search_entries(

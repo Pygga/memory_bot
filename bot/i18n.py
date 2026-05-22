@@ -280,6 +280,30 @@ STRINGS: dict[str, dict[str, str]] = {
         "ru": "📤 Экспорт в PDF",
         "en": "📤 Export to PDF",
     },
+    "book_btn": {
+        "ru": "📚 Книга воспоминаний",
+        "en": "📚 Memory Book",
+    },
+    "book_generating": {
+        "ru": "Создаю книгу воспоминаний... Это может занять минуту.",
+        "en": "Creating memory book... This may take a minute.",
+    },
+    "book_empty": {
+        "ru": "Записей пока нет — нечего экспортировать в книгу.",
+        "en": "No entries yet — nothing to export to a book.",
+    },
+    "book_filename": {
+        "ru": "книга_воспоминаний.pdf",
+        "en": "memory_book.pdf",
+    },
+    "book_period_week": {
+        "ru": "Период: неделя",
+        "en": "Period: week",
+    },
+    "book_period_month": {
+        "ru": "Период: месяц",
+        "en": "Period: month",
+    },
     "export_generating": {
         "ru": "Генерирую PDF...",
         "en": "Generating PDF...",

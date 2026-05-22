@@ -14,3 +14,8 @@ timezonefinder==6.5.2
 fpdf2==2.8.2
 scikit-learn==1.6.1
 matplotlib==3.10.1
+weasyprint==62.2
+jinja2==3.1.4
+cssutils==2.9.0
+redis==5.0.8
+psycopg2-binary==2.9.9
